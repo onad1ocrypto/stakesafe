@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.vercel/
+.env
+.env.*
+!.env.example
+*.log
+test/*.png
+test/validators-source.json
+StakeSafe-preview.html
+logo-concept.png
+.DS_Store
