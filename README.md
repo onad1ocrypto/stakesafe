@@ -1,18 +1,18 @@
 # StakeSafe
 
-**Staking, in sight.** Independent read-only Nimiq Pay mini app for mainnet staking records and validator discovery.
+**Staking, in sight.** Independent Nimiq Pay mini app for mainnet staking monitoring, validator discovery and opt-in native staking.
 
 Live: https://stakesafe-kappa.vercel.app
 
 ## What works
 
-- Official `@nimiq/mini-app-sdk` integration: `init()` waits for host injection; `listAccounts()` requests user-approved shared addresses. Supported hosts use `getBalance()` for the selected address. No signing or payment requests.
+- Official `@nimiq/mini-app-sdk` integration: `init()` waits for host injection; `listAccounts()` requests user-approved shared addresses. Supported hosts use `getBalance()` for the selected address. Connecting for monitoring requests no signature or transaction.
 - Browser fallback: watch a checksum-validated public mainnet address.
 - Explicit consent before mainnet reads. The browser uses the same-origin `/api/rpc` gateway, which forwards allowlisted read-only requests to `rpc.nimiqwatch.com`.
 - Real active, inactive, and retired stake, delegation, source block, and validator flags from RPC. Missing staker records are distinguished from failures. Failed checks retain labeled last-known values instead of replacing them with zero.
 - Foreground auto-refresh every 60 seconds while visible, pause/resume, manual refresh, on-screen change alerts, and up to 100 session events.
 - Mainnet-only guard: known testnet hosts are blocked; unknown/older hosts require explicit mainnet confirmation. The optional Remember this address setting persists only the selected public address and RPC/mainnet consent on this device. Shared account lists, balances, and history are not persisted.
-- Public validator directory: search, payout filters, fee sorting, source disclosures, and a fixed official-wallet handoff. It does not preselect a validator or initiate staking.
+- Public validator directory: search, payout filters, fee sorting, source disclosures, and native Pay staking with an explicit preview and native confirmation. A separate web-wallet link remains optional.
 - English UI, Light / Dark / System themes, responsive mobile layouts with a top hamburger menu (no bottom navigation bar).
 
 ## Open inside Nimiq Pay
@@ -30,13 +30,27 @@ Click **Connect Nimiq Pay**, review source/privacy and mainnet confirmations, th
 
 A normal desktop browser does not have the Nimiq Pay provider. It can still monitor a public address, without pretending to connect a wallet. A newly accessed mini app may trigger Nimiq Pay's warning screen.
 
+## Stake inside Pay
+
+1. Open a validator’s details and choose **Continue in Nimiq Pay**.
+2. Review the data-source disclosure and approve the native **account-check message**. This is not a transaction. The reported public key is converted to an address (cross-checked against official Nimiq Core); this host response identifies the account to query, not a backend login or independently verified ownership proof. The signature is not sent to a server or stored.
+3. StakeSafe reads that account’s current balance/position and the validator’s current flags. The account can differ from your remembered watch address.
+4. Review **create position**, **add stake to the same delegation**, or a separately disclosed **change validator**. A change requests reactivation of all eligible inactive stake; it does not withdraw retired funds. New positions require at least 100 NIM, matching the protocol minimum (10,000,000 Luna). Additions are positive; a zero active/inactive position also needs the minimum. Amounts accept at most five decimals, never floating-point coin multiplication. Leave funds for network fees; Pay selects and must display/validate the final fee. StakeSafe charges no service fee.
+5. Continue to native Pay confirmation. **The SDK has no sender-binding parameter. Verify the native From account matches the preview, and check mainnet, validator, action, amount and fee; cancel if anything differs.** If your Pay version cannot show these details, do not approve. Native signing requires a known host `mainnet` value, durable device storage, and Web Locks for cross-tab exclusion; unknown networks cannot sign.
+
+Live reads are rechecked immediately before the native request. Retired/flagged or unverifiable validators, unreadable balances and changed positions block the action. A historical jail marker can block this conservative flow without proving the validator is currently jailed.
+
+A returned hash is **submitted, not confirmed**. Use the read-only transaction check. It matches mainnet ID, sender, staking-contract destination/type, staking payload/action/delegation or staker address, value, mined execution, and the expected staking record before displaying a successful RPC observation. This is not an independent consensus/finality proof. Missing data or timeouts never imply a failed transaction or a successful stake.
+
+The public attempt details (account, validator, amount, action, prior stake total, time, status and optional hash) are stored locally, even if Remember this address is off. There is one unresolved attempt at a time; cancellation, ambiguous errors and reload never auto-retry a transaction. A persistent review notice remains until you inspect Pay and explicitly clear it. **Clearing the notice/site storage or Disconnect does not cancel an on-chain transaction.** Disconnect & forget clears the monitoring address, not the separate attempt guard. Keep the guard until you resolve the outcome. Do not retry blindly after connection loss or a pending prompt.
+
 ## Deliberate limits
 
 - **Foreground only.** No background monitoring, email, Telegram, push notifications, server-side subscriptions, or delivery guarantees.
-- No transaction signing, fund custody, automatic delegation, guaranteed rewards, or safety rankings. Never transfer funds directly to a validator address.
+- No key custody, server-side transaction submission, automatic delegation, guaranteed rewards, or safety rankings. Transaction signing and confirmation remain in Nimiq Pay. Never transfer funds directly to a validator address.
 - Validator flags are reported as-is, not interpreted as guaranteed current performance. A historical jail marker does not prove current jail duration. Separate RPC responses are not an atomic snapshot or an independently verified consensus proof.
 - On-chain checks and directory retrieval depend on third-party availability. Host testnet is not supported in this version. Refresh after changing networks; disconnect when finished.
-- SDK behavior has been tested with controlled host responses. **Physical-device Nimiq Pay approval, WebView behavior, and external-wallet handoff still require owner testing.**
+- SDK behavior has been tested with controlled host responses. **Physical-device Nimiq Pay signatures, transaction previews, approval/cancellation and WebView compatibility still require owner testing. No real transaction was submitted during automated tests.**
 
 ## Development
 
@@ -53,7 +67,7 @@ npx playwright install --with-deps chromium
 npm test
 ```
 
-Tests cover the SDK wrapper with host stubs, consent, denial, missing provider, testnet guard, real-data rendering, no-staker vs RPC errors, stale values, disconnection, directory filtering, official wallet destination, themes and mobile widths. Mock tests do not prove native-device compatibility. Directory test data is fetched from the public API if no local test fixture exists.
+Tests cover the SDK wrapper with host stubs, consent, denial, missing provider, testnet guard, real-data rendering, no-staker vs RPC errors, stale values, disconnection, directory filtering, native create/add/explicit delegation switch, exact Luna conversion, minimum/balance checks, strict native mainnet gating, cancellation, unknown outcomes, duplicate/reload/multi-tab guards, read-only transaction matching, themes and mobile widths. Mock tests do not prove native-device compatibility. Directory test data is fetched from the public API if no local test fixture exists.
 
 ## Build and deployment
 

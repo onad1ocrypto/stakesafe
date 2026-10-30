@@ -12,3 +12,5 @@ No affiliation or endorsement by Nimiq or any validator is implied.
 - Runtime: @nimiq/mini-app-sdk 0.2.4, The Nimiq Development Team (MIT), https://github.com/nimiq/trust-web3-provider . Bundled locally; see THIRD_PARTY_NOTICES.txt.
 - Mainnet records: https://rpc.nimiqwatch.com (third-party public RPC), queried through the same-origin StakeSafe gateway only after source disclosure and explicit consent.
 - Development bundler: esbuild (MIT), not a runtime service.
+
+- Public-key address hashing: @noble/hashes 1.8.0 (MIT), https://github.com/paulmillr/noble-hashes . Bundled Blake2b; see THIRD_PARTY_NOTICES.txt. Address derivation and staking payload test vectors were cross-checked against official @nimiq/core 2.22.0 during development; Core itself is not bundled.

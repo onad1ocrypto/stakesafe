@@ -98,3 +98,11 @@
  [data-theme=dark] .sidebar{background:#172231}
  [data-theme=dark] .sidebar .nav-item.active{background:#263c5d;color:#a7c3ff}
 }
+/* Opt-in native staking: readable at narrow widths and in both themes. */
+.native-amount{display:block;width:100%;box-sizing:border-box;margin:10px 0;padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--text);font:inherit;font-size:18px}
+.native-error{color:var(--danger,#b33b39);overflow-wrap:anywhere}
+.native-attempt-notice{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:24px}.native-attempt-notice span{flex:1;min-width:150px}
+#modal-body .full-validator-address{overflow-wrap:anywhere;word-break:break-word;white-space:normal;min-width:0}
+#modal-body .detail-row strong{min-width:0;max-width:70%;overflow-wrap:anywhere}
+#modal-body .consent-row{display:flex;gap:10px;align-items:flex-start;margin:20px 0;line-height:1.6}#modal-body .consent-row input{flex:none;margin-top:5px}
+#native-clear-error{color:var(--danger,#b33b39)}

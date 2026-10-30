@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "start": "npm run build && node scripts/serve.cjs",
-    "test": "npm run build && node test/gateway.cjs && node test/live.mjs && node test/reliability.mjs && node test/validators.mjs && node test/navigation.mjs",
+    "test": "npm run build && node test/gateway.cjs && node test/live.mjs && node test/reliability.mjs && node test/validators.mjs && node test/navigation.mjs && node test/native-staking.mjs",
     "build": "node scripts/build.mjs"
   },
   "devDependencies": {
@@ -12,8 +12,9 @@
     "esbuild": "^0.28.2"
   },
   "license": "MIT",
-  "description": "Read-only Nimiq Pay staking monitor and public validator directory",
+  "description": "Nimiq Pay staking monitor, validator directory and opt-in native staking",
   "dependencies": {
-    "@nimiq/mini-app-sdk": "^0.2.4"
+    "@nimiq/mini-app-sdk": "^0.2.4",
+    "@noble/hashes": "^1.8.0"
   }
 }
