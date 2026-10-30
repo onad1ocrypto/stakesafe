@@ -286,18 +286,12 @@ const calls = (p) => p.evaluate(() => window.__calls);
   await p.waitForSelector("[data-native-attempt]");
   assert.equal((await calls(p)).length, 0);
   await start(p);
-  assert.equal(await p.locator("#native-identify").count(), 0);
-  await p.click("#native-clear");
-  assert.match(
-    await p.locator("#native-clear-error").textContent(),
-    /acknowledge/,
-  );
-  await p.check("#native-clear-consent");
-  await p.click("#native-clear");
+  await p.waitForSelector("#native-identify");
   assert.equal(
     await p.evaluate(() => localStorage.getItem("stakesafe.native-attempt.v1")),
     null,
   );
+  assert.equal((await calls(p)).length, 0); // A resolved history entry must open review, not replay a transaction.
   await context.close();
 }
 // Existing position maps to add or explicit delegation switch, never silently creates/switches.
@@ -500,7 +494,7 @@ for (const kind of ["deactivate", "retire", "withdraw"]) {
       .textContent.includes("expected staking record"),
   );
   assert.equal((await calls(p)).filter((c) => c.name === kind).length, 1);
-  assert.equal((await calls(p)).filter(c=>c.name!=="sign").length,1);
+  assert.equal((await calls(p)).filter((c) => c.name !== "sign").length, 1);
   await context.close();
 }
 // Wrong native owner must block both profile shortcuts, never silently stake/exit for another address.
@@ -510,10 +504,10 @@ for (const intent of ["add", "unstake"]) {
     (v) =>
       window.StakeSafeNative.start({
         ...v,
-        intent:v.intent,
+        intent: v.intent,
         expectedOwner: "NQ15 HNAH YRVH DFVM YHAG BSXG 0QHK KA0Q XDR7",
       }),
-    {...v,intent},
+    { ...v, intent },
   );
   await p.check("#native-data-consent");
   await p.click("#native-identify");
@@ -556,6 +550,128 @@ assert.equal(
   }),
   20000000,
 );
+
+// Regression: an old submitted stake must not hijack Profile Add or Unstake forever.
+for (const intent of ["add", "unstake"]) {
+  const { context, p, config } = await setup({ kind: "add" });
+  const old = {
+    version: 1,
+    network: "mainnet",
+    sender: S,
+    validator: v.address,
+    name: v.name,
+    kind: "create",
+    value: 10000000,
+    previousTotal: 0,
+    time: Date.now() - 3600000,
+    status: "submitted",
+    hash: H,
+  };
+  const proof = "00" + pub + "00" + "00".repeat(64);
+  config.tx = {
+    hash: H,
+    networkId: 24,
+    from: other.address,
+    fromType: 2,
+    to: "NQ77 0000 0000 0000 0000 0000 0000 0000 0001",
+    toType: 3,
+    value: 10000000,
+    recipientData: "0501" + addressToHex(v.address) + proof,
+    proof: "01" + "00".repeat(98) + proof,
+    blockNumber: 65590000,
+    confirmations: 12,
+    executionResult: true,
+  };
+  await p.evaluate(
+    ({ old, S }) => {
+      localStorage.setItem("stakesafe.native-attempt.v1", JSON.stringify(old));
+      localStorage.setItem(
+        "stakesafe.remembered-address.v1",
+        JSON.stringify({
+          version: 1,
+          network: "mainnet",
+          rpc: "https://rpc.nimiqwatch.com",
+          consent: "rpc-mainnet-v1",
+          address: S,
+        }),
+      );
+    },
+    { old, S },
+  );
+  await p.reload();
+  await p.evaluate(() => navigate("profile"));
+  await p.waitForFunction(
+    () => !document.querySelector("#profile-add")?.disabled,
+  );
+  await p.click(intent === "add" ? "#profile-add" : "#profile-unstake");
+  await p.waitForSelector("#native-identify");
+  assert.equal(await p.locator("#native-attempt-status").count(), 0);
+  assert.equal(
+    await p.evaluate(() => localStorage.getItem("stakesafe.native-attempt.v1")),
+    null,
+  );
+  assert.equal((await calls(p)).length, 0);
+  await p.check("#native-data-consent");
+  await p.click("#native-identify");
+  await p.waitForSelector("#native-review-consent");
+  assert.match(
+    await p.locator("#modal-title").textContent(),
+    intent === "add" ? /Add to existing/ : /Deactivate/,
+  );
+  assert.equal((await calls(p)).filter((c) => c.name !== "sign").length, 0);
+  await context.close();
+}
+// Receipt errors, unmined receipts and owner mismatches must retain the guard.
+for (const problem of ["timeout", "pending", "wrong-owner"]) {
+  const { context, p, config } = await setup({ kind: "add" });
+  const proof = "00" + pub + "00" + "00".repeat(64);
+  const old = {
+    version: 1,
+    network: "mainnet",
+    sender: S,
+    validator: v.address,
+    name: v.name,
+    kind: "create",
+    value: 10000000,
+    previousTotal: 0,
+    time: Date.now() - 10000,
+    status: "submitted",
+    hash: H,
+  };
+  config.tx = {
+    hash: H,
+    networkId: 24,
+    from: problem === "wrong-owner" ? A : S,
+    fromType: 0,
+    to: "NQ77 0000 0000 0000 0000 0000 0000 0001",
+    toType: 3,
+    value: 10000000,
+    recipientData: "0501" + addressToHex(v.address) + proof,
+    blockNumber: 65590000,
+    confirmations: problem === "pending" ? 0 : 3,
+    executionResult: true,
+  };
+  await p.evaluate(
+    (old) =>
+      localStorage.setItem("stakesafe.native-attempt.v1", JSON.stringify(old)),
+    old,
+  );
+  await p.reload();
+  if (problem === "timeout") config.failRead = true;
+  await start(p);
+  assert.equal(await p.locator("#native-identify").count(), 0);
+  assert.ok(
+    await p.evaluate(() => localStorage.getItem("stakesafe.native-attempt.v1")),
+  );
+  assert.equal((await calls(p)).length, 0);
+  // Manual override stays explicit for unresolved outcomes.
+  await p.click("#native-clear");
+  assert.match(
+    await p.locator("#native-clear-error").textContent(),
+    /acknowledge/,
+  );
+  await context.close();
+}
 // Host mainnet must be known; testnet/unknown never request signatures or transactions.
 for (const network of ["testnet", "unknown"]) {
   const { context, p, config } = await setup({ network });
@@ -626,7 +742,10 @@ for (const mode of ["deny", "error", "invalid"]) {
   );
   await p.reload();
   await start(p);
-  assert.equal(await p.locator("#native-identify").count(), 0);
+  assert.equal(
+    await p.locator("#native-identify").count(),
+    mode === "deny" ? 1 : 0,
+  );
   assert.equal((await calls(p)).length, 0);
   await context.close();
 }
@@ -722,5 +841,5 @@ for (const mode of ["storage", "lock"]) {
 await b.close();
 assert.deepEqual(errors, []);
 console.log(
-  "PASS: mocked native create/add/explicit switch, exact Luna/minimum, zero basic balance with HTLC funding, reported signer vs watched address, strict mainnet, consent, cancellation, ambiguous outcomes, duplicate/reload guard, read-only status matching, mobile branding/profile totals/validator names, native deactivate/retire/withdraw and owner-mismatch guards. No real transactions submitted.",
+  "PASS: mocked native create/add/explicit switch, exact Luna/minimum, zero basic balance with HTLC funding, reported signer vs watched address, strict mainnet, consent, cancellation, ambiguous outcomes, duplicate/reload guard, read-only status matching, mobile branding/profile totals/validator names, native deactivate/retire/withdraw, settled-history handoff to fresh Profile actions, unresolved-receipt blocking and owner-mismatch guards. No real transactions submitted.",
 );

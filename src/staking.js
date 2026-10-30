@@ -37,7 +37,8 @@ let preparing = false,
   revision = 0,
   checking = false,
   candidate = null,
-  lockBusy = false;
+  lockBusy = false,
+  settling = false;
 const normalize = (a) => window.StakeSafe.normalizeAddress(a);
 const same = (a, b) =>
   String(a || "").replace(/\s/g, "") === String(b || "").replace(/\s/g, "");
@@ -180,11 +181,8 @@ function showForm(f) {
   );
 }
 function start(v) {
-  if (preparing || sending || lockBusy) return;
-  if (attempt && v.intent !== "profile") {
-    showAttempt();
-    return;
-  }
+  if (preparing || sending || lockBusy || settling || checking) return;
+  if (attempt && v.intent !== "profile") return resolvePreviousForNewReview(v);
   try {
     mainnet();
     candidate = v;
@@ -331,7 +329,7 @@ async function send() {
   } catch (e) {
     failure(errorText(e));
   } finally {
-    lockBusy = false;
+    ((lockBusy = false), (settling = false));
   }
 }
 async function performSend() {
@@ -467,6 +465,34 @@ function showAttempt(message = "") {
     `<div class="notice-box" id="native-attempt-status" role="status">${esc(message || { awaiting: "Waiting for Pay, or outcome unknown after reload. Do not repeat the transaction.", submitted: "Submitted hash received — not confirmed. Use the read-only check below.", unknown: "Outcome unknown. The request may have reached Pay. Inspect Pay transaction history; do not repeat blindly.", canceled: "Pay reported cancellation or permission denied. No automatic retry.", confirmed: "Mainnet source reported mined execution and the expected staking record. This is an RPC observation, not an independent finality guarantee.", failed: "Mainnet source reported failed execution. Review Pay before another action." }[a.status] || "Review the outcome in Pay.")}</div><p>${esc(title(a.kind))} · ${esc(a.name)} · ${fmt(a.value)} NIM<br><span class="full-validator-address">${esc(a.sender)}</span><br>${esc(new Date(a.time).toLocaleString("en"))}</p>${a.hash ? `<p>Transaction hash<br><span class="full-validator-address">${esc(a.hash)}</span></p><button class="button primary" id="native-check" ${checking ? "disabled" : ""}>Check mainnet status (read-only)</button>` : "<p>No usable hash was returned. StakeSafe cannot infer whether a transaction was submitted. Check Pay’s transaction history.</p>"}<hr><label class="consent-row"><input id="native-clear-consent" type="checkbox"><span>I reviewed this transaction in Pay, resolved any pending/unknown outcome, and understand clearing this local record does not cancel a transaction. I will not duplicate a pending request.</span></label><p id="native-clear-error" role="alert"></p><button class="button white" id="native-clear" ${sending ? "disabled" : ""}>Clear reviewed record</button><p>The public transaction details above are saved on this device to prevent accidental duplicate requests. Clearing browser storage also removes this protection.</p>`,
   );
 }
+async function readMatchedMinedReceipt(a) {
+  const t = await rpc("getTransactionByHash", [a.hash]);
+  if (
+    !t ||
+    t.hash !== a.hash ||
+    t.networkId !== 24 ||
+    (a.kind !== "withdraw" && !matchesFundingOwner(t, a)) ||
+    t.value !== transactionValue(a) ||
+    !(isExit(a.kind) ? matchesExitPayload(t, a) : matchesStakingPayload(t, a))
+  )
+    throw new Error(
+      "The transaction could not be matched to the expected mainnet funding owner, staking identity, action, validator and value. Do not repeat it; inspect Pay.",
+    );
+  if (
+    !Number.isSafeInteger(t.blockNumber) ||
+    t.blockNumber < 1 ||
+    !Number.isSafeInteger(t.confirmations) ||
+    t.confirmations < 1
+  )
+    throw new Error(
+      "The transaction is not yet reported as mined. Do not repeat it.",
+    );
+  if (typeof t.executionResult !== "boolean")
+    throw new Error(
+      "Execution status is unavailable. Do not repeat the request.",
+    );
+  return t;
+}
 async function checkAttempt() {
   if (!attempt?.hash || checking) return;
   checking = true;
@@ -474,37 +500,13 @@ async function checkAttempt() {
     b = q("#native-check");
   if (b) b.disabled = true;
   try {
-    const t = await rpc("getTransactionByHash", [a.hash]);
+    const t = await readMatchedMinedReceipt(a);
     if (attempt !== a) return;
-    if (
-      !t ||
-      t.hash !== a.hash ||
-      t.networkId !== 24 ||
-      (a.kind !== "withdraw" && !matchesFundingOwner(t, a)) ||
-      t.value !== transactionValue(a) ||
-      !(isExit(a.kind) ? matchesExitPayload(t, a) : matchesStakingPayload(t, a))
-    )
-      throw new Error(
-        "The transaction could not be matched to the expected mainnet funding owner, staking identity, action, validator and value. Do not repeat it; inspect Pay.",
-      );
-    if (
-      !Number.isSafeInteger(t.blockNumber) ||
-      t.blockNumber < 1 ||
-      !Number.isSafeInteger(t.confirmations) ||
-      t.confirmations < 1
-    )
-      throw new Error(
-        "The transaction is not yet reported as mined. Do not repeat it.",
-      );
     if (t.executionResult === false) {
       save({ ...a, status: "failed" });
       showAttempt();
       return;
     }
-    if (t.executionResult !== true)
-      throw new Error(
-        "Execution status is not available. No success is inferred.",
-      );
     const staker = await rpc("getStakerByAddress", [a.sender]);
     if (attempt !== a) return;
     if (
@@ -679,3 +681,76 @@ document.addEventListener("change", (e) => {
     showForm(flow);
   }
 });
+
+// A completed receipt is history, not a permanently pending write. Starting a new
+// user-requested review may release only that exact resolved guard, under the same
+// origin-wide lock as transaction submission. It never replays the old transaction.
+async function resolvePreviousForNewReview(v) {
+  const a = attempt;
+  if (!a) return start(v);
+  settling = true;
+  const run = ++revision;
+  openModal(
+    "Checking the previous transaction",
+    '<p id="native-previous-check" role="status">Reading the previous receipt on mainnet before opening a new action. No transaction or account-signing request is being sent.</p><button class="button white" data-native-close>Cancel</button>',
+  );
+  let released = false;
+  try {
+    mainnet();
+    if (a.hash) await readMatchedMinedReceipt(a);
+    else if (a.status !== "canceled")
+      throw new Error(
+        "The previous request has no usable hash and its outcome is unresolved. Inspect Pay history first; only clear its local record after resolving it.",
+      );
+    if (run !== revision) return;
+    if (!navigator.locks?.request)
+      throw new Error(
+        "Update Pay to use the cross-tab transaction lock. The previous record has not been cleared.",
+      );
+    await navigator.locks.request(
+      "stakesafe-native-staking",
+      { ifAvailable: true },
+      async (lock) => {
+        if (!lock)
+          throw new Error(
+            "Another tab is processing a native request. Review it in Pay first.",
+          );
+        if (run !== revision) return;
+        const raw = localStorage.getItem(KEY),
+          stored = raw ? JSON.parse(raw) : null;
+        const identical = (x) =>
+          x &&
+          x.time === a.time &&
+          x.sender === a.sender &&
+          x.hash === a.hash &&
+          x.kind === a.kind &&
+          x.value === a.value;
+        if (!stored && !attempt) {
+          released = true;
+          return;
+        }
+        if (!identical(attempt) || !identical(stored))
+          throw new Error(
+            "The saved transaction changed in another tab. No record was cleared. Review the current transaction first.",
+          );
+        clear();
+        released = true;
+      },
+    );
+  } catch (e) {
+    if (run === revision)
+      showAttempt(
+        "A new action is paused: " +
+          errorText(e) +
+          " Nothing has been resubmitted.",
+      );
+  } finally {
+    settling = false;
+  }
+  if (released && run === revision) {
+    toast(
+      "Previous request resolved. Review a new action; nothing is sent automatically.",
+    );
+    start(v);
+  }
+}
