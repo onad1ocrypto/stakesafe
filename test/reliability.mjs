@@ -1,0 +1,11 @@
+import {chromium} from '@playwright/test';import assert from 'node:assert/strict';
+const b=await chromium.launch({args:['--no-sandbox']});const p=await b.newPage();let external=0;
+await p.route('https://rpc.nimiqwatch.com',r=>{external++;return r.abort()});
+await p.route('**/api/rpc',r=>r.fulfill({status:504,json:{error:'RPC timeout'}}));
+await p.goto(process.env.BASE_URL||'http://127.0.0.1:3000');
+await p.evaluate(()=>{window.notices=[];const original=window.toast;window.toast=text=>{window.notices.push(text);original(text)}});
+await p.click('#watch-address');await p.fill('#public-address','NQ07 0000 0000 0000 0000 0000 0000 0000 0000');await p.check('#rpc-consent');await p.check('#mainnet-consent');await p.click('#confirm-connect');
+await p.waitForFunction(()=>document.querySelector('#live-state').textContent==='Check failed');assert.equal(await p.locator('#active-balance').textContent(),'—');
+assert.ok(await p.evaluate(()=>localStorage.getItem('stakesafe.remembered-address.v1')));
+await p.click('#refresh');await p.waitForFunction(()=>document.querySelector('#live-state').textContent==='Check failed');assert.equal(await p.evaluate(()=>window.notices.filter(t=>t.startsWith('Check failed:')).length),1);assert.equal(external,0);
+await p.reload();await p.waitForFunction(()=>document.querySelector('#live-state').textContent==='Check failed');assert.match(await p.locator('#wallet-label').textContent(),/Remembered/);await b.close();console.log('PASS: same-origin only, timeout preserves saved address, no fake zero balance, repeated identical failure toast suppressed, reload remains read-only.');
