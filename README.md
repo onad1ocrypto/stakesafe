@@ -13,7 +13,8 @@ Live: https://stakesafe-kappa.vercel.app
 - Foreground auto-refresh every 60 seconds while visible, pause/resume, manual refresh, on-screen change alerts, and up to 100 session events.
 - Mainnet-only guard: known testnet hosts are blocked; unknown/older hosts require explicit mainnet confirmation. The optional Remember this address setting persists only the selected public address and RPC/mainnet consent on this device. Shared account lists, balances, and history are not persisted.
 - Public validator directory: search, payout filters, fee sorting, source disclosures, and native Pay staking with an explicit preview and native confirmation. A separate web-wallet link remains optional.
-- English UI, Light / Dark / System themes, responsive mobile layouts with a top hamburger menu (no bottom navigation bar).
+- Profile page: monitored staking owner, total held in staking, active/inactive/retired breakdown, validator name plus full address, refresh, owner-matched Add stake and native unstaking steps. Directory-name failures fall back to the chain address; no name is invented.
+- English UI, Light / Dark / System themes, responsive mobile layouts with a top hamburger menu and persistent StakeSafe logo/name (no bottom navigation bar).
 
 ## Open inside Nimiq Pay
 
@@ -89,3 +90,19 @@ Project code is MIT. Third-party names and metadata are not relicensed by the pr
 ### Pay HTLC balance boundary
 
 The displayed basic-address balance is not the total shown on Pay’s home screen. `getAccountByAddress` and the native `getBalance(address)` can both correctly return zero for the owner address while Pay funds remain in HTLCs. StakeSafe shows the wallet spendable total as unavailable rather than inventing a total or blocking on that zero. Final affordability belongs to Pay. Post-submission checks accept HTLC funding only with the expected canonical local-owner proof; create/change actions also match the inner staking-owner proof, and additions match the explicit staker address. These identity-format matches rely on the RPC mined-execution result for signature/contract validation; they are not independent cryptographic or consensus verification. Unknown proof formats stay unverified and must not be blindly resubmitted.
+
+## Profile and native unstaking
+
+Open **Profile** from the navigation menu. The total includes active, inactive and retired funds held in staking; it is not active-only stake or Pay’s spendable total. Names come from directory metadata matched by the on-chain delegation address; the address remains visible. An unavailable/unlisted name is labeled unavailable, not guessed. Last-known data remains labeled and action shortcuts disable on stale/error reads. Overview also resolves the delegation name when metadata is available.
+
+If the watched address is not the staking owner, choose **Use my Pay staking account**, consent to the read-only account-check message and optionally remember that public address. Reload then resumes read-only checks without another native prompt. Profile actions perform a fresh native account check and reject a different owner or changed delegation; watching someone else never authorizes a transaction.
+
+**Unstake / withdraw** opens three explicitly selected steps, using only stages with a nonzero relevant balance:
+
+1. **Deactivate active stake:** choose an amount to move from active to inactive via `sendSetActiveStakeTransaction`. It does not pay out funds.
+2. **Retire inactive stake:** after protocol eligibility, request `sendRetireStakeTransaction`. A recorded inactive-from block is displayed, not an unlock countdown. Waiting periods/validator restrictions are validated by Pay and the network, not guessed by this app.
+3. **Withdraw retired stake:** request `sendRemoveStakeTransaction` to your own owner account when eligible. Pay may subsequently fund its HTLC from that account.
+
+Each step requires amount/action review and its own native confirmation. Partial retirement/withdrawal must respect applicable 100-NIM remainder rules; a full eligible balance may be requested for native protocol validation. Fresh position changes block sending. Validator flags do not block exit reads/actions, so the app does not trap a flagged position, but protocol restrictions still apply. No instant unstaking, scheduled actions, automatic stage advance or fixed waiting time is promised. Some steps depend on Pay’s HTLC/cosigner synchronization; errors remain reviewable without automatic retry.
+
+Exit transaction checks match the intended owner, exact action/amount, canonical proof/recipient-data formats, mined execution and expected balance transition. Retired withdrawals match the staking-contract sender and your owner destination/proof rather than an HTLC funding sender. Unsupported formats remain unverified. Automated tests mock the native host and RPC; offline format tests were cross-checked with official Nimiq Core 2.22.0. Physical-device retirement/withdrawal approval and timing still require device testing; no real unstaking was sent during development.

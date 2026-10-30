@@ -7,6 +7,12 @@ import {
   totalStake,
   matchesStakingPayload,
   matchesFundingOwner,
+  isExit,
+  validateExitAmount,
+  positionKey,
+  transactionValue,
+  exitStateMatches,
+  matchesExitPayload,
 } from "./staking-utils.mjs";
 const KEY = "stakesafe.native-attempt.v1",
   q = (s) => document.querySelector(s),
@@ -116,18 +122,18 @@ function validateValidator(v, address) {
       "This source reports a retirement, inactivity, or jail marker. StakeSafe blocks new staking to flagged validators. A jail marker can be historical; review it in Pay rather than assuming a current penalty.",
     );
 }
-async function readState(sender, validator) {
+async function readState(sender, validator, exit = false) {
   mainnet();
   const [staker, wallet, v, head] = await Promise.all([
     rpc("getStakerByAddress", [sender]),
     rpc("getAccountByAddress", [sender]),
-    rpc("getValidatorByAddress", [validator]),
+    exit ? Promise.resolve(null) : rpc("getValidatorByAddress", [validator]),
     rpc("getBlockNumber"),
   ]);
   mainnet();
   if (!Number.isSafeInteger(head) || head < 1)
     throw new Error("Cannot verify the current mainnet block.");
-  validateValidator(v, validator);
+  if (!exit) validateValidator(v, validator);
   if (staker) {
     if (normalize(staker.address) !== sender)
       throw new Error("Staker address mismatch.");
@@ -143,12 +149,18 @@ const title = (kind) =>
     create: "Create staking position",
     add: "Add to existing stake",
     switch: "Change validator",
+    deactivate: "Deactivate active stake",
+    retire: "Retire inactive stake",
+    withdraw: "Withdraw retired stake",
   })[kind];
 const method = (kind) =>
   ({
     create: "sendNewStakerTransaction",
     add: "sendStakeTransaction",
     switch: "sendUpdateStakerTransaction",
+    deactivate: "sendSetActiveStakeTransaction",
+    retire: "sendRetireStakeTransaction",
+    withdraw: "sendRemoveStakeTransaction",
   })[kind];
 function failure(message) {
   openModal(
@@ -157,6 +169,10 @@ function failure(message) {
   );
 }
 function showForm(f) {
+  if (isExit(f.kind)) {
+    showExitForm(f);
+    return;
+  }
   const { kind, sender, v, state } = f;
   openModal(
     title(kind),
@@ -165,7 +181,7 @@ function showForm(f) {
 }
 function start(v) {
   if (preparing || sending || lockBusy) return;
-  if (attempt) {
+  if (attempt && v.intent !== "profile") {
     showAttempt();
     return;
   }
@@ -174,7 +190,7 @@ function start(v) {
     candidate = v;
     openModal(
       "Stake inside Nimiq Pay",
-      `<p>First Pay will ask you to sign an account-check message (not a transaction). Then StakeSafe reads that reported account’s mainnet balance and staking record and the selected validator’s live status.</p><p>Validator: <strong>${esc(v.name)}</strong></p><label class="consent-row"><input id="native-data-consent" type="checkbox"><span>I agree to these public-address queries through StakeSafe’s read-only gateway to rpc.nimiqwatch.com. Hosting and RPC operators receive the request. Only if I later request a transaction, its public details are saved on this device to guard against duplicates. My watched address may differ from the signing account.</span></label><p>No keys or seed phrases are requested. The account-check signature stays in tab memory only and is not used for backend authentication. No transaction is requested at this step.</p><a class="text-button" href="privacy.html">Privacy & limitations ↗</a><p id="native-error" role="alert"></p><button class="button primary" id="native-identify">Check Pay account</button><button class="button white" data-native-close>Cancel</button>`,
+      `<p>First Pay will ask you to sign an account-check message (not a transaction). Then StakeSafe reads that reported account’s mainnet balance and staking record and the selected validator’s live status.</p><p>${v.intent === "profile" ? "Purpose" : "Validator / position"}: <strong>${esc(v.name)}</strong></p><label class="consent-row"><input id="native-data-consent" type="checkbox"><span>I agree to these public-address queries through StakeSafe’s read-only gateway to rpc.nimiqwatch.com. Hosting and RPC operators receive the request. Only if I later request a transaction, its public details are saved on this device to guard against duplicates. My watched address may differ from the signing account.</span></label>${v.intent === "profile" ? '<label class="consent-row"><input type="checkbox" id="native-profile-remember" checked><span>Remember this public staking address and mainnet read consent on this device. Reload resumes read-only profile checks without another account prompt. Avoid on shared devices.</span></label>' : ""}<p>No keys or seed phrases are requested. The account-check signature stays in tab memory only and is not used for backend authentication. No transaction is requested at this step.</p><a class="text-button" href="privacy.html">Privacy & limitations ↗</a><p id="native-error" role="alert"></p><button class="button primary" id="native-identify">Check Pay account</button><button class="button white" data-native-close>Cancel</button>`,
     );
   } catch (e) {
     failure(errorText(e));
@@ -182,10 +198,12 @@ function start(v) {
 }
 async function identify(v) {
   if (preparing || sending) return;
-  if (attempt) {
+  if (attempt && v.intent !== "profile") {
     showAttempt();
     return;
   }
+  const profileRemember =
+    v.intent === "profile" && !!q("#native-profile-remember")?.checked;
   preparing = true;
   const run = ++revision;
   try {
@@ -198,14 +216,14 @@ async function identify(v) {
       );
     openModal(
       "Identify your Pay account",
-      `<p>The next Pay prompt signs an account-check message, not a transaction. No funds move. Afterward you can review the actual staking action before requesting a transaction.</p><p>Validator: <strong>${esc(v.name)}</strong></p><p id="native-identify-state">Waiting for the account-check response in Pay…</p>`,
+      `<p>The next Pay prompt signs an account-check message, not a transaction. No funds move. Afterward you can review the actual staking action before requesting a transaction.</p><p>${v.intent === "profile" ? "Purpose" : "Validator / position"}: <strong>${esc(v.name)}</strong></p><p id="native-identify-state">Waiting for the account-check response in Pay…</p>`,
     );
     const nonce = Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) =>
       b.toString(16).padStart(2, "0"),
     ).join("");
     const answer = unwrap(
       await p.sign(
-        `StakeSafe account check only\nMainnet\nValidator: ${address}\nNonce: ${nonce}\nThis message does not authorize a staking transaction.`,
+        `StakeSafe account check only\nMainnet\nPurpose: ${v.intent === "profile" ? "Read-only staking profile" : address}\nNonce: ${nonce}\nThis message does not authorize a staking transaction.`,
       ),
     );
     if (run !== revision) return;
@@ -216,10 +234,33 @@ async function identify(v) {
       !/^[0-9a-f]{128}$/i.test(answer.signature)
     )
       throw new Error("Invalid account-check response from Nimiq Pay.");
-    const sender = publicKeyToAddress(answer.publicKey),
-      state = await readState(sender, address);
+    const sender = publicKeyToAddress(answer.publicKey);
+    if (v.intent === "profile") {
+      closeModal();
+      window.StakeSafe.useProfileAddress(sender, { remember: profileRemember });
+      return;
+    }
+    if (v.expectedOwner && normalize(v.expectedOwner) !== sender)
+      throw new Error(
+        "The selected Pay account differs from this profile. No transaction requested. Use “Use my Pay staking account” to load the correct profile.",
+      );
+    const state = await readState(sender, address, v.intent === "unstake");
     if (run !== revision) return;
-    const kind = planStake(state.staker, address);
+    let kind = planStake(state.staker, address);
+    if (v.intent === "add" && kind !== "add")
+      throw new Error(
+        "The profile delegation changed. Refresh your profile; no validator change will be made automatically.",
+      );
+    if (v.intent === "unstake") {
+      if (!state.staker || totalStake(state.staker) === 0)
+        throw new Error("No stake is available to unstake for this account.");
+      kind =
+        state.staker.balance > 0
+          ? "deactivate"
+          : state.staker.inactiveBalance > 0
+            ? "retire"
+            : "withdraw";
+    }
     if (typeof p[method(kind)] !== "function")
       throw new Error(
         "This Pay version does not expose the required native staking method. Update Pay or use its own wallet.",
@@ -236,6 +277,7 @@ function amountFor(f) {
   if (f.kind === "switch") return 0;
   const value = parseLuna(q("#native-amount").value);
   const s = f.state.staker;
+  if (isExit(f.kind)) return validateExitAmount(f.kind, value, s);
   if ((!s || s.balance + s.inactiveBalance === 0) && value < 10000000)
     throw new Error("At least 100 NIM is required for this position.");
   return value;
@@ -252,7 +294,7 @@ function review() {
     f.value = amountFor(f);
     openModal(
       "Confirm native staking request",
-      `<div class="notice-box">${esc(title(f.kind))} · Mainnet</div><p><strong>Staker / owner account reported by Pay</strong><br><span class="full-validator-address">${esc(f.sender)}</span></p><p><strong>Validator</strong><br>${esc(f.v.name)}<br><span class="full-validator-address">${esc(f.v.address)}</span></p><div class="detail-row"><span>${f.kind === "switch" ? "New funds" : "Amount"}</span><strong>${fmt(f.value)} NIM</strong></div>${f.kind === "switch" ? "<p>Change the existing delegation and request reactivation of all eligible inactive stake. No withdrawal.</p>" : ""}<p>Network fee: <strong>review the actual fee in Pay</strong>. No StakeSafe service fee. This screen is not a fee quote or a guarantee that Pay will accept the transaction.</p><div class="notice-box">Pay controls the selected wallet and funding source; this SDK cannot lock either. The staking owner above is not necessarily the funding <strong>From</strong> address: Pay normally uses an HTLC. Verify the selected Pay wallet, staking identity if shown, mainnet, validator, action, amount and fee; cancel if details are wrong or cannot be verified. Pay must validate available funds, which StakeSafe cannot read as a wallet total. A returned transaction hash is not confirmation.</div><p id="native-error" class="native-error" role="alert"></p><button class="button primary" id="native-send">Continue to Nimiq Pay</button><button class="button white" id="native-back">Back</button>`,
+      `<div class="notice-box">${esc(title(f.kind))} · Mainnet</div><p><strong>Staker / owner account reported by Pay</strong><br><span class="full-validator-address">${esc(f.sender)}</span></p><p><strong>Validator</strong><br>${esc(f.v.name)}<br><span class="full-validator-address">${esc(f.v.address)}</span></p><div class="detail-row"><span>${f.kind === "switch" ? "New funds" : isExit(f.kind) ? "Amount for this step" : "Amount"}</span><strong>${fmt(f.value)} NIM</strong></div>${f.kind === "switch" ? "<p>Change the existing delegation and request reactivation of all eligible inactive stake. No withdrawal.</p>" : ""}${isExit(f.kind) ? `<div class="notice-box">${exitExplanation(f.kind)} This is only one step, not an automatic unstaking sequence. Pay and the network must accept timing and balance rules.</div>` : ""}<p>Network fee: <strong>review the actual fee in Pay</strong>. No StakeSafe service fee. This screen is not a fee quote or a guarantee that Pay will accept the transaction.</p><div class="notice-box">Pay controls the selected wallet and funding source; this SDK cannot lock either. The staking owner above is not necessarily the funding <strong>From</strong> address: Pay normally uses an HTLC. Verify the selected Pay wallet, staking identity if shown, mainnet, validator, action, amount and fee; cancel if details are wrong or cannot be verified. Pay must validate available funds, which StakeSafe cannot read as a wallet total. A returned transaction hash is not confirmation.</div><p id="native-error" class="native-error" role="alert"></p><button class="button primary" id="native-send">Continue to Nimiq Pay</button><button class="button white" id="native-back">Back</button>`,
     );
   } catch (e) {
     q("#native-error").textContent = errorText(e);
@@ -304,9 +346,11 @@ async function performSend() {
   let called = false;
   try {
     mainnet();
-    const fresh = await readState(f.sender, f.v.address);
+    const fresh = await readState(f.sender, f.v.address, isExit(f.kind));
     if (
-      planStake(fresh.staker, f.v.address) !== f.kind ||
+      (!isExit(f.kind) && planStake(fresh.staker, f.v.address) !== f.kind) ||
+      (isExit(f.kind) &&
+        positionKey(fresh.staker) !== positionKey(f.state.staker)) ||
       !same(fresh.staker?.delegation, f.state.staker?.delegation) ||
       totalStake(fresh.staker) !== totalStake(f.state.staker)
     )
@@ -314,12 +358,14 @@ async function performSend() {
         "The staking position changed since preview. Close and start again to review current data.",
       );
     if (
+      !isExit(f.kind) &&
       f.kind !== "switch" &&
       (!fresh.staker ||
         fresh.staker.balance + fresh.staker.inactiveBalance === 0) &&
       f.value < 10000000
     )
       throw new Error("Minimum-stake checks changed. Close and review again.");
+    if (isExit(f.kind)) validateExitAmount(f.kind, f.value, fresh.staker);
     if (f.run !== revision)
       throw new Error("Preview closed. No transaction requested.");
     mainnet();
@@ -327,11 +373,14 @@ async function performSend() {
       version: 1,
       network: "mainnet",
       sender: f.sender,
-      validator: f.v.address,
+      validator: isExit(f.kind) ? fresh.staker.delegation || null : f.v.address,
       name: f.v.name,
       kind: f.kind,
       value: f.value,
       previousTotal: totalStake(fresh.staker),
+      before: isExit(f.kind) ? fresh.staker : undefined,
+      newActiveBalance:
+        f.kind === "deactivate" ? fresh.staker.balance - f.value : undefined,
       time: Date.now(),
       status: "awaiting",
       hash: null,
@@ -339,11 +388,17 @@ async function performSend() {
     called = true;
     if (button) button.textContent = "Confirm or cancel in Pay…";
     const params =
-      f.kind === "create"
-        ? { delegation: f.v.address, value: f.value }
-        : f.kind === "add"
-          ? { value: f.value }
-          : { newDelegation: f.v.address, reactivateAllStake: true };
+      f.kind === "deactivate"
+        ? { newActiveBalance: fresh.staker.balance - f.value }
+        : f.kind === "retire"
+          ? { retireStake: f.value }
+          : f.kind === "withdraw"
+            ? { value: f.value }
+            : f.kind === "create"
+              ? { delegation: f.v.address, value: f.value }
+              : f.kind === "add"
+                ? { value: f.value }
+                : { newDelegation: f.v.address, reactivateAllStake: true };
     const result = unwrap(await f.p[method(f.kind)](params));
     if (typeof result !== "string" || !/^[a-f0-9]{64}$/i.test(result))
       throw new Error(
@@ -363,6 +418,11 @@ async function performSend() {
         "Pay returned the hash below, but device storage could not save it. Copy it and inspect Pay. Do not repeat the request.",
       );
     }
+    window.dispatchEvent(
+      new CustomEvent("stakesafe:native-observed", {
+        detail: { address: f.sender },
+      }),
+    );
     showAttempt();
   } catch (e) {
     if (called) {
@@ -420,9 +480,9 @@ async function checkAttempt() {
       !t ||
       t.hash !== a.hash ||
       t.networkId !== 24 ||
-      !matchesFundingOwner(t, a) ||
-      t.value !== a.value ||
-      !matchesStakingPayload(t, a)
+      (a.kind !== "withdraw" && !matchesFundingOwner(t, a)) ||
+      t.value !== transactionValue(a) ||
+      !(isExit(a.kind) ? matchesExitPayload(t, a) : matchesStakingPayload(t, a))
     )
       throw new Error(
         "The transaction could not be matched to the expected mainnet funding owner, staking identity, action, validator and value. Do not repeat it; inspect Pay.",
@@ -448,15 +508,22 @@ async function checkAttempt() {
     const staker = await rpc("getStakerByAddress", [a.sender]);
     if (attempt !== a) return;
     if (
-      !staker ||
-      normalize(staker.address) !== a.sender ||
-      !same(staker.delegation, a.validator) ||
-      totalStake(staker) < a.previousTotal + a.value
+      (staker && normalize(staker.address) !== a.sender) ||
+      (isExit(a.kind)
+        ? !exitStateMatches(a, staker)
+        : !staker ||
+          !same(staker.delegation, a.validator) ||
+          totalStake(staker) < a.previousTotal + a.value)
     )
       throw new Error(
         "Mined execution reported, but the expected staking record is not yet verified. Check again later; do not resubmit.",
       );
     save({ ...a, status: "confirmed" });
+    window.dispatchEvent(
+      new CustomEvent("stakesafe:native-observed", {
+        detail: { address: a.sender },
+      }),
+    );
     showAttempt();
   } catch (e) {
     if (attempt === a)
@@ -522,7 +589,14 @@ function restoreAttempt() {
       if (
         a.version !== 1 ||
         a.network !== "mainnet" ||
-        !["create", "add", "switch"].includes(a.kind) ||
+        ![
+          "create",
+          "add",
+          "switch",
+          "deactivate",
+          "retire",
+          "withdraw",
+        ].includes(a.kind) ||
         !Number.isSafeInteger(a.time) ||
         !Number.isSafeInteger(a.value) ||
         a.value < 0 ||
@@ -531,8 +605,14 @@ function restoreAttempt() {
         !(a.hash === null || /^[a-f0-9]{64}$/.test(a.hash))
       )
         throw new Error("Invalid attempt");
+      if (isExit(a.kind)) {
+        if (!a.before) throw new Error("Incomplete exit preview");
+        totalStake(a.before);
+        if (a.kind === "deactivate") integerLuna(a.newActiveBalance);
+      }
       a.sender = normalize(a.sender);
-      a.validator = normalize(a.validator);
+      a.validator = a.validator ? normalize(a.validator) : null;
+      if (!isExit(a.kind) && !a.validator) throw new Error("Missing validator");
       attempt = a;
       renderAttempt();
     }
@@ -555,5 +635,47 @@ window.addEventListener("storage", (e) => {
     attempt = null;
     restoreAttempt();
     renderAttempt();
+  }
+});
+
+function exitExplanation(kind) {
+  return {
+    deactivate:
+      "Moves the chosen amount from active to inactive stake. Funds remain in staking and stop being active; they are not paid out.",
+    retire:
+      "Requests retirement of inactive stake after the protocol waiting period. This is not a withdrawal. Pay/network must validate eligibility; no unlock date is promised.",
+    withdraw:
+      "Requests removal of eligible retired stake to your own Pay owner account. Pay may subsequently move it into its funding HTLC. Only the network can confirm execution.",
+  }[kind];
+}
+function showExitForm(f) {
+  const b = f.state.staker;
+  openModal(
+    title(f.kind),
+    `<div class="notice-box">Mainnet · Staking owner<br><strong class="full-validator-address">${esc(f.sender)}</strong></div><p>Validator: ${esc(f.v.name)}</p><p>Active: ${fmt(b.balance)} NIM · Inactive: ${fmt(b.inactiveBalance)} NIM · Retired: ${fmt(b.retiredBalance)} NIM</p><label for="native-stage">Unstaking step</label><select id="native-stage">${[
+      ["deactivate", "1. Deactivate active stake", b.balance],
+      ["retire", "2. Retire inactive stake", b.inactiveBalance],
+      ["withdraw", "3. Withdraw retired stake", b.retiredBalance],
+    ]
+      .map(
+        ([kind, label, n]) =>
+          `<option value="${kind}" ${kind === f.kind ? "selected" : ""} ${!n ? "disabled" : ""}>${label}</option>`,
+      )
+      .join(
+        "",
+      )}</select><div class="notice-box">${exitExplanation(f.kind)}</div><p>Inactive-from block: ${esc(b.inactiveFrom ?? "Not reported")}. This is a recorded block, not a guarantee that retirement or withdrawal is currently allowed. Check Pay’s final confirmation. A waiting period or validator restrictions can cause rejection.</p><label for="native-amount">Amount for this step (NIM)</label><input class="native-amount" id="native-amount" type="text" inputmode="decimal" autocomplete="off" placeholder="Amount in NIM"><p>For partial retirement/withdrawal, the protocol requires applicable remaining stake to be 0 or at least 100 NIM. Review the network fee in Pay. No StakeSafe service fee.</p><label class="consent-row"><input id="native-review-consent" type="checkbox"><span>I understand this is only the selected step. It will not automatically retire or withdraw funds later. I will verify the selected Pay wallet, staking account, action, amount, destination, fee and mainnet before approving; I will cancel if anything is wrong or unclear.</span></label><p id="native-error" role="alert"></p><button class="button primary" id="native-review">Review action</button><button class="button white" data-native-close>Cancel</button>`,
+  );
+}
+document.addEventListener("change", (e) => {
+  if (e.target.id === "native-stage" && flow && !sending && !lockBusy) {
+    const kind = e.target.value;
+    if (!isExit(kind)) return;
+    if (typeof flow.p[method(kind)] !== "function") {
+      q("#native-error").textContent =
+        "This Pay version does not support that step.";
+      return;
+    }
+    flow.kind = kind;
+    showForm(flow);
   }
 });

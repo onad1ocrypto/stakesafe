@@ -126,3 +126,100 @@ export function matchesFundingOwner(t, a) {
     matchesSingleSigOwner(t.proof.slice(-196), a.sender)
   );
 }
+
+export const isExit = (kind) =>
+  ["deactivate", "retire", "withdraw"].includes(kind);
+export function validateExitAmount(kind, value, s) {
+  if (!s) throw new Error("No staking position exists for this Pay account.");
+  totalStake(s);
+  integerLuna(value, "amount");
+  if (value <= 0) throw new Error("Enter a positive amount.");
+  const available =
+    kind === "deactivate"
+      ? s.balance
+      : kind === "retire"
+        ? s.inactiveBalance
+        : s.retiredBalance;
+  if (value > available)
+    throw new Error("Amount exceeds the balance available for this step.");
+  const remaining =
+    kind === "retire"
+      ? s.balance + s.inactiveBalance - value
+      : kind === "withdraw"
+        ? totalStake(s) - value
+        : null;
+  if (remaining !== null && remaining > 0 && remaining < 10000000)
+    throw new Error(
+      "Leave at least 100 NIM in the remaining staking balance, or remove the entire eligible balance if the protocol permits.",
+    );
+  return value;
+}
+export const positionKey = (s) =>
+  JSON.stringify(
+    s
+      ? [
+          s.delegation,
+          s.balance,
+          s.inactiveBalance,
+          s.retiredBalance,
+          s.inactiveFrom,
+        ]
+      : null,
+  );
+export const transactionValue = (a) =>
+  ["deactivate", "retire", "switch"].includes(a.kind) ? 0 : a.value;
+export function exitStateMatches(a, s) {
+  const b = a.before;
+  if (!b) return false;
+  if (a.kind === "withdraw")
+    return s
+      ? totalStake(s) <= a.previousTotal - a.value
+      : a.previousTotal === a.value;
+  if (
+    !s ||
+    s.address !== a.sender ||
+    String(s.delegation || "").replace(/\s/g, "") !==
+      String(a.validator || "").replace(/\s/g, "")
+  )
+    return false;
+  if (a.kind === "deactivate")
+    return (
+      s.balance <= a.newActiveBalance &&
+      s.inactiveBalance >= b.inactiveBalance + a.value
+    );
+  if (a.kind === "retire")
+    return (
+      s.inactiveBalance <= b.inactiveBalance - a.value &&
+      s.retiredBalance >= b.retiredBalance + a.value
+    );
+  return false;
+}
+const u64hex = (n) => BigInt(n).toString(16).padStart(16, "0");
+export function matchesExitPayload(t, a) {
+  const contract = "NQ7700000000000000000000000000000001";
+  if (a.kind === "withdraw")
+    return (
+      t.fromType === 3 &&
+      String(t.from).replace(/\s/g, "") === contract &&
+      t.toType === 0 &&
+      String(t.to).replace(/\s/g, "") === a.sender.replace(/\s/g, "") &&
+      t.senderData === "01" &&
+      t.recipientData === "" &&
+      matchesSingleSigOwner(t.proof, a.sender)
+    );
+  if (
+    t.toType !== 3 ||
+    String(t.to).replace(/\s/g, "") !== contract ||
+    typeof t.recipientData !== "string"
+  )
+    return false;
+  const raw = t.recipientData.toLowerCase(),
+    prefix =
+      a.kind === "deactivate"
+        ? "08" + u64hex(a.newActiveBalance)
+        : "09" + u64hex(a.value);
+  return (
+    raw.startsWith(prefix) &&
+    matchesSingleSigOwner(raw.slice(prefix.length), a.sender)
+  );
+}

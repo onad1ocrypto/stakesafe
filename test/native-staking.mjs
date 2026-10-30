@@ -7,6 +7,9 @@ import {
   planStake,
   addressToHex,
   matchesStakingPayload,
+  validateExitAmount,
+  matchesExitPayload,
+  exitStateMatches,
 } from "../src/staking-utils.mjs";
 assert.equal(parseLuna("100.00001"), 10000001);
 assert.equal(parseLuna("0.00001"), 1);
@@ -153,6 +156,9 @@ async function setup(options = {}) {
         sendNewStakerTransaction: (p) => tx("create", p),
         sendStakeTransaction: (p) => tx("add", p),
         sendUpdateStakerTransaction: (p) => tx("switch", p),
+        sendSetActiveStakeTransaction: (p) => tx("deactivate", p),
+        sendRetireStakeTransaction: (p) => tx("retire", p),
+        sendRemoveStakeTransaction: (p) => tx("withdraw", p),
       };
       if (options.remember)
         localStorage.setItem(
@@ -381,6 +387,175 @@ for (const kind of ["add", "switch"]) {
   assert.equal((await calls(p)).filter((x) => x.name === "create").length, 1);
   await context.close();
 }
+
+// Profile totals, validator metadata, remembered native owner and explicit exit steps.
+for (const kind of ["deactivate", "retire", "withdraw"]) {
+  const { context, p, config } = await setup({ kind: "add" });
+  config.staker = {
+    address: S,
+    delegation: v.address,
+    balance: kind === "deactivate" ? 20000000 : 0,
+    inactiveBalance: kind === "retire" ? 20000000 : 0,
+    retiredBalance: kind === "withdraw" ? 20000000 : 0,
+    inactiveFrom: 65580000,
+  };
+  config.flag = true; // Validator flags must not trap funds by blocking exits.
+  await p.evaluate(() => navigate("profile"));
+  assert.match(
+    await p.locator("#profile-content").textContent(),
+    /No staking account/,
+  );
+  await p.click("#profile-use-pay");
+  await p.check("#native-data-consent");
+  await p.click("#native-identify");
+  await p.waitForFunction(
+    () => document.querySelector("#profile-total")?.textContent === "200 NIM",
+  );
+  assert.equal(
+    await p.locator("#profile-validator-name").textContent(),
+    v.name,
+  );
+  assert.equal(await p.locator("#delegated-validator").textContent(), v.name);
+  assert.equal((await calls(p)).filter((c) => c.name !== "sign").length, 0);
+  await p.reload();
+  await p.waitForFunction(
+    () => document.querySelector("#profile-total")?.textContent === "200 NIM",
+  );
+  assert.equal((await calls(p)).length, 0);
+  for (const theme of ["light", "dark"]) {
+    await p.click(`[data-theme-choice=${theme}]`);
+    for (const width of [320, 390, 640]) {
+      await p.setViewportSize({ width, height: 900 });
+      assert.equal(await p.locator(".mobile-brand").isVisible(), true);
+      assert.match(await p.locator(".mobile-brand").textContent(), /StakeSafe/);
+      assert.equal(
+        await p.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+        true,
+      );
+    }
+  }
+  await p.screenshot({ path: `test/profile-${kind}.png`, fullPage: false });
+  await p.click("#profile-unstake");
+  await p.check("#native-data-consent");
+  await p.click("#native-identify");
+  await p.waitForSelector("#native-stage");
+  assert.equal(await p.locator("#native-stage").inputValue(), kind);
+  await p.fill("#native-amount", "201");
+  await p.check("#native-review-consent");
+  await p.click("#native-review");
+  assert.match(await p.locator("#native-error").textContent(), /exceeds/);
+  await review(p, "100");
+  await p.click("#native-send");
+  await p.waitForSelector("#native-check");
+  const c = (await calls(p)).find((c) => c.name === kind);
+  assert.deepEqual(
+    c.params,
+    kind === "deactivate"
+      ? { newActiveBalance: 10000000 }
+      : kind === "retire"
+        ? { retireStake: 10000000 }
+        : { value: 10000000 },
+  );
+  const proof = "00" + pub + "00" + "00".repeat(64),
+    contract = "NQ77 0000 0000 0000 0000 0000 0000 0000 0001";
+  config.tx = {
+    hash: H,
+    networkId: 24,
+    from: kind === "withdraw" ? contract : other.address,
+    fromType: kind === "withdraw" ? 3 : 2,
+    to: kind === "withdraw" ? S : contract,
+    toType: kind === "withdraw" ? 0 : 3,
+    value: kind === "withdraw" ? 10000000 : 0,
+    senderData: kind === "withdraw" ? "01" : "",
+    recipientData:
+      kind === "withdraw"
+        ? ""
+        : (kind === "deactivate" ? "08" : "09") +
+          BigInt(10000000).toString(16).padStart(16, "0") +
+          proof,
+    proof: kind === "withdraw" ? proof : "01" + "00".repeat(98) + proof,
+    blockNumber: 65590000,
+    confirmations: 1,
+    executionResult: true,
+  };
+  const before = { ...config.staker };
+  await p.click("#native-check");
+  await p.waitForFunction(() =>
+    document
+      .querySelector("#native-attempt-status")
+      .textContent.includes("not yet verified"),
+  );
+  config.staker = {
+    ...before,
+    balance: kind === "deactivate" ? 10000000 : 0,
+    inactiveBalance: kind === "deactivate" || kind === "retire" ? 10000000 : 0,
+    retiredBalance: kind === "retire" || kind === "withdraw" ? 10000000 : 0,
+  };
+  await p.click("#native-check");
+  await p.waitForFunction(() =>
+    document
+      .querySelector("#native-attempt-status")
+      .textContent.includes("expected staking record"),
+  );
+  assert.equal((await calls(p)).filter((c) => c.name === kind).length, 1);
+  assert.equal((await calls(p)).filter(c=>c.name!=="sign").length,1);
+  await context.close();
+}
+// Wrong native owner must block both profile shortcuts, never silently stake/exit for another address.
+for (const intent of ["add", "unstake"]) {
+  const { context, p } = await setup({ kind: "add" });
+  await p.evaluate(
+    (v) =>
+      window.StakeSafeNative.start({
+        ...v,
+        intent:v.intent,
+        expectedOwner: "NQ15 HNAH YRVH DFVM YHAG BSXG 0QHK KA0Q XDR7",
+      }),
+    {...v,intent},
+  );
+  await p.check("#native-data-consent");
+  await p.click("#native-identify");
+  await p.waitForFunction(() =>
+    document
+      .querySelector("#modal-body")
+      .textContent.includes("differs from this profile"),
+  );
+  assert.equal((await calls(p)).filter((c) => c.name !== "sign").length, 0);
+  await context.close();
+}
+// Applicable remainder minimums; full eligible exit is allowed for native protocol validation.
+assert.throws(() =>
+  validateExitAmount("retire", 15000000, {
+    balance: 0,
+    inactiveBalance: 20000000,
+    retiredBalance: 0,
+  }),
+);
+assert.throws(() =>
+  validateExitAmount("withdraw", 15000000, {
+    balance: 0,
+    inactiveBalance: 0,
+    retiredBalance: 20000000,
+  }),
+);
+assert.equal(
+  validateExitAmount("retire", 20000000, {
+    balance: 0,
+    inactiveBalance: 20000000,
+    retiredBalance: 0,
+  }),
+  20000000,
+);
+assert.equal(
+  validateExitAmount("withdraw", 20000000, {
+    balance: 0,
+    inactiveBalance: 0,
+    retiredBalance: 20000000,
+  }),
+  20000000,
+);
 // Host mainnet must be known; testnet/unknown never request signatures or transactions.
 for (const network of ["testnet", "unknown"]) {
   const { context, p, config } = await setup({ network });
@@ -547,5 +722,5 @@ for (const mode of ["storage", "lock"]) {
 await b.close();
 assert.deepEqual(errors, []);
 console.log(
-  "PASS: mocked native create/add/explicit switch, exact Luna/minimum, zero basic balance with HTLC funding, reported signer vs watched address, strict mainnet, consent, cancellation, ambiguous outcomes, duplicate/reload guard, read-only status matching, mobile themes. No real transactions submitted.",
+  "PASS: mocked native create/add/explicit switch, exact Luna/minimum, zero basic balance with HTLC funding, reported signer vs watched address, strict mainnet, consent, cancellation, ambiguous outcomes, duplicate/reload guard, read-only status matching, mobile branding/profile totals/validator names, native deactivate/retire/withdraw and owner-mismatch guards. No real transactions submitted.",
 );
