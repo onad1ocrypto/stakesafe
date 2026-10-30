@@ -14,7 +14,7 @@ Live: https://stakesafe-kappa.vercel.app
 - Mainnet-only guard: known testnet hosts are blocked; unknown/older hosts require explicit mainnet confirmation. The optional Remember this address setting persists only the selected public address and RPC/mainnet consent on this device. Shared account lists, balances, and history are not persisted.
 - Public validator directory: search, payout filters, fee sorting, source disclosures, and native Pay staking with an explicit preview and native confirmation. A separate web-wallet link remains optional.
 - Profile page: monitored staking owner, total held in staking, active/inactive/retired breakdown, validator name plus full address, refresh, owner-matched Add stake and native unstaking steps. Directory-name failures fall back to the chain address; no name is invented.
-- English UI, Light / Dark / System themes, responsive mobile layouts with a top hamburger menu and persistent StakeSafe logo/name (no bottom navigation bar).
+- English UI, Light / Dark / System themes (light uses blue/teal layered surfaces, a navy profile total card and distinct active/inactive/retired tints), responsive mobile layouts with a top hamburger menu and persistent StakeSafe logo/name (no bottom navigation bar).
 
 ## Open inside Nimiq Pay
 
