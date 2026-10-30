@@ -11,7 +11,7 @@ Live: https://stakesafe-kappa.vercel.app
 - Explicit consent before sending the selected address to `rpc.nimiqwatch.com`.
 - Real active, inactive, and retired stake, delegation, source block, and validator flags from RPC. Missing staker records are distinguished from failures. Failed checks retain labeled last-known values instead of replacing them with zero.
 - Foreground auto-refresh every 60 seconds while visible, pause/resume, manual refresh, on-screen change alerts, and up to 100 session events.
-- Mainnet-only guard: known testnet hosts are blocked; unknown/older hosts require explicit mainnet confirmation. Wallet addresses and session history are not persisted.
+- Mainnet-only guard: known testnet hosts are blocked; unknown/older hosts require explicit mainnet confirmation. The optional Remember this address setting persists only the selected public address and RPC/mainnet consent on this device. Shared account lists, balances, and history are not persisted.
 - Public validator directory: search, payout filters, fee sorting, source disclosures, and a fixed official-wallet handoff. It does not preselect a validator or initiate staking.
 - English UI, Light / Dark / System themes, responsive mobile layouts.
 
@@ -24,7 +24,9 @@ Live: https://stakesafe-kappa.vercel.app
 
 No external app-opening link is provided. If your version does not expose Custom URL, check the current Nimiq Pay instructions or update the app.
 
-Click **Connect Nimiq Pay**, review source/privacy and mainnet confirmations, then approve account sharing in the native wallet. If several addresses are shared, choose one to monitor. The selection is not a wallet signer selection or proof of ownership. Disconnect and reconnect to request a fresh shared list.
+Click **Connect Nimiq Pay**, review source/privacy and mainnet confirmations, then approve account sharing in the native wallet. If several addresses are shared, choose one to monitor. The selection is not a wallet signer selection or proof of ownership. Use Change address to request a fresh shared list. Disconnect & forget removes the remembered address.
+
+**No repeated connection for read-only monitoring:** keep Remember this address enabled at first connection. On return, the saved mainnet address is queried directly through the public RPC; wallet account permissions are not requested again. This is a remembered watch address, not a wallet login or proof of ownership. If you switch Nimiq Pay wallets, use Change address; the app will not silently assume the remembered address belongs to the current wallet. Storage must remain available on the same site and device.
 
 A normal desktop browser does not have the Nimiq Pay provider. It can still monitor a public address, without pretending to connect a wallet. A newly accessed mini app may trigger Nimiq Pay's warning screen.
 
