@@ -1,6 +1,6 @@
 # Security policy
 
-StakeSafe is a mainnet mini app with read-only monitoring and opt-in native Pay staking with foreground monitoring and a public validator directory. Native-device testing is still required before claiming release readiness. It must not be represented as a background monitoring or notification service.
+StakeSafe provides mainnet staking monitoring, a public validator directory and opt-in native Pay staking. Monitoring runs only in the foreground. Automated host/RPC tests do not replace native-device testing.
 
 - Never enter a seed phrase or private key in StakeSafe.
 - StakeSafe may request native staking transactions only after explicit review. Pay retains keys and final confirmation; StakeSafe never receives staking funds, signs locally, or submits transactions through its server.
