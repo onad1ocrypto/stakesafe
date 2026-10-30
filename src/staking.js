@@ -6,6 +6,7 @@ import {
   integerLuna,
   totalStake,
   matchesStakingPayload,
+  matchesFundingOwner,
 } from "./staking-utils.mjs";
 const KEY = "stakesafe.native-attempt.v1",
   q = (s) => document.querySelector(s),
@@ -159,7 +160,7 @@ function showForm(f) {
   const { kind, sender, v, state } = f;
   openModal(
     title(kind),
-    `<div class="notice-box">Mainnet · Account reported by Nimiq Pay<br><strong class="full-validator-address" id="native-sender">${esc(sender)}</strong></div><p>This is not necessarily your watched address. StakeSafe uses Pay’s account-check response to read this account; it is not a login or a backend ownership proof.</p><div class="detail-row"><span>Selected validator</span><strong>${esc(v.name)}</strong></div><p class="full-validator-address">${esc(v.address)}</p><div class="detail-row"><span>Spendable balance</span><strong>${fmt(state.balance)} NIM</strong></div>${state.staker ? `<div class="detail-row"><span>Existing delegation</span><strong class="full-validator-address">${esc(state.staker.delegation || "None")}</strong></div><p>Total staked: ${fmt(totalStake(state.staker))} NIM.</p>` : ""}${kind === "switch" ? '<div class="notice-box">This changes the existing position’s delegation; it does not add funds. All stake eligible for reactivation will be reactivated, including inactive stake. Retired stake is not withdrawn. Protocol timing restrictions can prevent the change. No new validator is selected silently.</div>' : `<label for="native-amount">Amount in NIM</label><input class="native-amount" id="native-amount" type="text" inputmode="decimal" autocomplete="off" placeholder="${kind === "create" ? "Minimum 100 NIM" : "Amount to add"}"><p>${kind === "create" ? "The protocol minimum for a new position is 100 NIM." : "If active and inactive balances are zero, at least 100 NIM must be added."} Leave funds for any network fee. StakeSafe does not set a fee or charge a service fee; Pay must show and validate its final fee.</p>`}<p>Staking carries validator and protocol risks; rewards are variable. Unstaking and validator changes can involve a waiting period. Directory fee and payout terms may be stale; check the validator’s terms.</p>${v.payoutType === "none" ? '<div class="no-rewards">The directory reports no reward payouts.</div>' : ""}<label class="consent-row"><input id="native-review-consent" type="checkbox"> <span>I reviewed the validator and understand this action${kind === "switch" ? " changes my delegation and requests reactivation of eligible stake" : ""}${v.payoutType === "none" ? " with no reported rewards" : ""}. In Pay’s final confirmation I will check the From account, validator, amount, fee and mainnet. StakeSafe’s SDK cannot lock the sender; I will cancel if the From account differs from the address above.</span></label><p id="native-error" class="native-error" role="alert"></p><button class="button primary" id="native-review">Review action</button><button class="button white" data-native-close>Cancel</button>`,
+    `<div class="notice-box">Mainnet · Staker / owner account reported by Pay<br><strong class="full-validator-address" id="native-sender">${esc(sender)}</strong></div><p>This is not necessarily your watched address. StakeSafe uses Pay’s account-check response to read this account; it is not a login or a backend ownership proof.</p><div class="detail-row"><span>Selected validator</span><strong>${esc(v.name)}</strong></div><p class="full-validator-address">${esc(v.address)}</p><div class="detail-row"><span>Basic address balance (not wallet total)</span><strong>${fmt(state.balance)} NIM</strong></div><div class="notice-box">Pay wallet spendable balance: <strong>not available to StakeSafe</strong>. Pay can hold NIM in HTLC funding contracts while this basic address reads 0. Do not interpret that as an empty Pay wallet. Pay must check available funds and the fee in its native transaction flow.</div>${state.staker ? `<div class="detail-row"><span>Existing delegation</span><strong class="full-validator-address">${esc(state.staker.delegation || "None")}</strong></div><p>Total staked: ${fmt(totalStake(state.staker))} NIM.</p>` : ""}${kind === "switch" ? '<div class="notice-box">This changes the existing position’s delegation; it does not add funds. All stake eligible for reactivation will be reactivated, including inactive stake. Retired stake is not withdrawn. Protocol timing restrictions can prevent the change. No new validator is selected silently.</div>' : `<label for="native-amount">Amount in NIM</label><input class="native-amount" id="native-amount" type="text" inputmode="decimal" autocomplete="off" placeholder="${kind === "create" ? "Minimum 100 NIM" : "Amount to add"}"><p>${kind === "create" ? "The protocol minimum for a new position is 100 NIM." : "If active and inactive balances are zero, at least 100 NIM must be added."} Leave funds for any network fee. StakeSafe does not set a fee or charge a service fee; Pay must show and validate its final fee.</p>`}<p>Staking carries validator and protocol risks; rewards are variable. Unstaking and validator changes can involve a waiting period. Directory fee and payout terms may be stale; check the validator’s terms.</p>${v.payoutType === "none" ? '<div class="no-rewards">The directory reports no reward payouts.</div>' : ""}<label class="consent-row"><input id="native-review-consent" type="checkbox"> <span>I reviewed the validator and understand this action${kind === "switch" ? " changes my delegation and requests reactivation of eligible stake" : ""}${v.payoutType === "none" ? " with no reported rewards" : ""}. In Pay’s final confirmation I will check the selected wallet, staking action, validator, amount, fee and mainnet. The owner address above is the staking identity, not necessarily the transaction’s funding From address: Pay may spend from its HTLC contract. I will cancel if the selected wallet or staking details are wrong or cannot be verified.</span></label><p id="native-error" class="native-error" role="alert"></p><button class="button primary" id="native-review">Review action</button><button class="button white" data-native-close>Cancel</button>`,
   );
 }
 function start(v) {
@@ -237,10 +238,6 @@ function amountFor(f) {
   const s = f.state.staker;
   if ((!s || s.balance + s.inactiveBalance === 0) && value < 10000000)
     throw new Error("At least 100 NIM is required for this position.");
-  if (value >= f.state.balance)
-    throw new Error(
-      "Amount must be below your spendable balance. Leave funds for the fee shown by Pay.",
-    );
   return value;
 }
 function review() {
@@ -255,7 +252,7 @@ function review() {
     f.value = amountFor(f);
     openModal(
       "Confirm native staking request",
-      `<div class="notice-box">${esc(title(f.kind))} · Mainnet</div><p><strong>From account reported by Pay</strong><br><span class="full-validator-address">${esc(f.sender)}</span></p><p><strong>Validator</strong><br>${esc(f.v.name)}<br><span class="full-validator-address">${esc(f.v.address)}</span></p><div class="detail-row"><span>${f.kind === "switch" ? "New funds" : "Amount"}</span><strong>${fmt(f.value)} NIM</strong></div>${f.kind === "switch" ? "<p>Change the existing delegation and request reactivation of all eligible inactive stake. No withdrawal.</p>" : ""}<p>Network fee: <strong>review the actual fee in Pay</strong>. No StakeSafe service fee. This screen is not a fee quote or a guarantee that Pay will accept the transaction.</p><div class="notice-box">Pay controls the final signing account; this SDK has no sender-binding parameter. Check <strong>From</strong> against the address above and cancel if it differs. Also check mainnet, validator, action, amount and fee. A returned transaction hash is not confirmation.</div><p id="native-error" class="native-error" role="alert"></p><button class="button primary" id="native-send">Continue to Nimiq Pay</button><button class="button white" id="native-back">Back</button>`,
+      `<div class="notice-box">${esc(title(f.kind))} · Mainnet</div><p><strong>Staker / owner account reported by Pay</strong><br><span class="full-validator-address">${esc(f.sender)}</span></p><p><strong>Validator</strong><br>${esc(f.v.name)}<br><span class="full-validator-address">${esc(f.v.address)}</span></p><div class="detail-row"><span>${f.kind === "switch" ? "New funds" : "Amount"}</span><strong>${fmt(f.value)} NIM</strong></div>${f.kind === "switch" ? "<p>Change the existing delegation and request reactivation of all eligible inactive stake. No withdrawal.</p>" : ""}<p>Network fee: <strong>review the actual fee in Pay</strong>. No StakeSafe service fee. This screen is not a fee quote or a guarantee that Pay will accept the transaction.</p><div class="notice-box">Pay controls the selected wallet and funding source; this SDK cannot lock either. The staking owner above is not necessarily the funding <strong>From</strong> address: Pay normally uses an HTLC. Verify the selected Pay wallet, staking identity if shown, mainnet, validator, action, amount and fee; cancel if details are wrong or cannot be verified. Pay must validate available funds, which StakeSafe cannot read as a wallet total. A returned transaction hash is not confirmation.</div><p id="native-error" class="native-error" role="alert"></p><button class="button primary" id="native-send">Continue to Nimiq Pay</button><button class="button white" id="native-back">Back</button>`,
     );
   } catch (e) {
     q("#native-error").textContent = errorText(e);
@@ -318,14 +315,11 @@ async function performSend() {
       );
     if (
       f.kind !== "switch" &&
-      (f.value >= fresh.balance ||
-        ((!fresh.staker ||
-          fresh.staker.balance + fresh.staker.inactiveBalance === 0) &&
-          f.value < 10000000))
+      (!fresh.staker ||
+        fresh.staker.balance + fresh.staker.inactiveBalance === 0) &&
+      f.value < 10000000
     )
-      throw new Error(
-        "Balance or minimum-stake checks changed. Close and review again.",
-      );
+      throw new Error("Minimum-stake checks changed. Close and review again.");
     if (f.run !== revision)
       throw new Error("Preview closed. No transaction requested.");
     mainnet();
@@ -426,12 +420,12 @@ async function checkAttempt() {
       !t ||
       t.hash !== a.hash ||
       t.networkId !== 24 ||
-      !same(t.from, a.sender) ||
+      !matchesFundingOwner(t, a) ||
       t.value !== a.value ||
       !matchesStakingPayload(t, a)
     )
       throw new Error(
-        "The transaction could not be matched to the expected mainnet sender, staking action, validator and value. Do not repeat it; inspect Pay.",
+        "The transaction could not be matched to the expected mainnet funding owner, staking identity, action, validator and value. Do not repeat it; inspect Pay.",
       );
     if (
       !Number.isSafeInteger(t.blockNumber) ||

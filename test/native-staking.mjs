@@ -238,10 +238,12 @@ const calls = (p) => p.evaluate(() => window.__calls);
     hash: H,
     networkId: 24,
     from: A,
+    fromType: 0,
     value: 10000001,
     toType: 3,
     to: "NQ77 0000 0000 0000 0000 0000 0000 0000 0001",
-    recipientData: "0501" + addressToHex(v.address) + "00".repeat(98),
+    recipientData:
+      "0501" + addressToHex(v.address) + "00" + pub + "00" + "00".repeat(64),
     blockNumber: 65590000,
     confirmations: 1,
     executionResult: true,
@@ -308,6 +310,77 @@ for (const kind of ["add", "switch"]) {
   );
   await context.close();
 }
+// Regression: Pay wallet funds live in an HTLC, not the basic owner address.
+{
+  const { context, p, config } = await setup();
+  config.balance = 0;
+  await identify(p);
+  await p.waitForSelector("#native-review-consent");
+  assert.match(
+    await p.locator("#modal-body").textContent(),
+    /not wallet total/,
+  );
+  assert.match(
+    await p.locator("#modal-body").textContent(),
+    /not available to StakeSafe/,
+  );
+  assert.doesNotMatch(
+    await p.locator("#modal-body").textContent(),
+    /Spendable balance/,
+  );
+  await review(p, "473");
+  await p.click("#native-send");
+  await p.waitForSelector("#native-check");
+  const localProof = "00" + pub + "00" + "00".repeat(64);
+  config.tx = {
+    hash: H,
+    networkId: 24,
+    from: other.address,
+    fromType: 2,
+    to: "NQ77 0000 0000 0000 0000 0000 0000 0000 0001",
+    toType: 3,
+    value: 47300000,
+    recipientData: "0501" + addressToHex(v.address) + localProof,
+    proof: "01" + "00".repeat(98) + localProof,
+    blockNumber: 65590000,
+    confirmations: 1,
+    executionResult: true,
+  };
+  config.staker = {
+    address: S,
+    delegation: v.address,
+    balance: 47300000,
+    inactiveBalance: 0,
+    retiredBalance: 0,
+  };
+  // A different HTLC owner or different staking proof must never pass status matching.
+  const correctProof = config.tx.proof;
+  config.tx.proof = "01" + "00".repeat(196);
+  await p.click("#native-check");
+  await p.waitForFunction(() =>
+    document
+      .querySelector("#native-attempt-status")
+      .textContent.includes("could not be matched"),
+  );
+  config.tx.proof = correctProof;
+  const correctData = config.tx.recipientData;
+  config.tx.recipientData = "0501" + addressToHex(v.address) + "00".repeat(98);
+  await p.click("#native-check");
+  await p.waitForFunction(() =>
+    document
+      .querySelector("#native-attempt-status")
+      .textContent.includes("could not be matched"),
+  );
+  config.tx.recipientData = correctData;
+  await p.click("#native-check");
+  await p.waitForFunction(() =>
+    document
+      .querySelector("#native-attempt-status")
+      .textContent.includes("expected staking record"),
+  );
+  assert.equal((await calls(p)).filter((x) => x.name === "create").length, 1);
+  await context.close();
+}
 // Host mainnet must be known; testnet/unknown never request signatures or transactions.
 for (const network of ["testnet", "unknown"]) {
   const { context, p, config } = await setup({ network });
@@ -331,13 +404,7 @@ for (const network of ["testnet", "unknown"]) {
   await context.close();
 }
 // RPC timeout / validator flag / insufficient spendable amount block all native writes.
-for (const scenario of [
-  "timeout",
-  "flag",
-  "balance",
-  "changed",
-  "network-change",
-]) {
+for (const scenario of ["timeout", "flag", "changed", "network-change"]) {
   const { context, p, config } = await setup();
   if (scenario === "timeout") config.failRead = true;
   if (scenario === "flag") config.flag = true;
@@ -348,7 +415,6 @@ for (const scenario of [
         document.querySelector("#modal-title").textContent === "Native staking",
     );
   } else {
-    if (scenario === "balance") config.balance = 100;
     if (scenario === "changed")
       config.staker = {
         address: S,
@@ -481,5 +547,5 @@ for (const mode of ["storage", "lock"]) {
 await b.close();
 assert.deepEqual(errors, []);
 console.log(
-  "PASS: mocked native create/add/explicit switch, exact Luna/minimum/balance, reported signer vs watched address, strict mainnet, consent, cancellation, ambiguous outcomes, duplicate/reload guard, read-only status matching, mobile themes. No real transactions submitted.",
+  "PASS: mocked native create/add/explicit switch, exact Luna/minimum, zero basic balance with HTLC funding, reported signer vs watched address, strict mainnet, consent, cancellation, ambiguous outcomes, duplicate/reload guard, read-only status matching, mobile themes. No real transactions submitted.",
 );

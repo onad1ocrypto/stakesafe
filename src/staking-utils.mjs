@@ -96,5 +96,33 @@ export function matchesStakingPayload(t, a) {
     (a.kind === "create" ? "0501" : "0701") +
     addressToHex(a.validator) +
     (a.kind === "switch" ? "01" : "");
-  return raw.startsWith(prefix) && raw.length > prefix.length;
+  return (
+    raw.startsWith(prefix) &&
+    matchesSingleSigOwner(raw.slice(prefix.length), a.sender)
+  );
+}
+
+// Canonical Ed25519 single-signature proof: type byte, public key, empty Merkle path, signature.
+// ExecutionResult=true is checked separately; this matches identity, not independent crypto verification.
+function matchesSingleSigOwner(proof, owner) {
+  return (
+    typeof proof === "string" &&
+    /^00[0-9a-f]{64}00[0-9a-f]{128}$/i.test(proof) &&
+    publicKeyToAddress(proof.slice(2, 66)) === owner
+  );
+}
+export function matchesFundingOwner(t, a) {
+  if (t.fromType === 0)
+    return (
+      String(t.from).replace(/\s/g, "") === String(a.sender).replace(/\s/g, "")
+    );
+  // Pay early-resolve: 01 + cosigner proof (variable length) + canonical local-owner proof.
+  // The mined-execution check ensures the node validated the HTLC proof and the contract spend.
+  return (
+    t.fromType === 2 &&
+    typeof t.proof === "string" &&
+    /^01[0-9a-f]+$/i.test(t.proof) &&
+    t.proof.length >= 394 &&
+    matchesSingleSigOwner(t.proof.slice(-196), a.sender)
+  );
 }
