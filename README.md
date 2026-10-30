@@ -4,8 +4,6 @@
 
 Live: https://stakesafe-kappa.vercel.app
 
-Open in Nimiq Pay: https://nimpay.app/miniapps/open/stakesafe-kappa.vercel.app
-
 ## What works
 
 - Official `@nimiq/mini-app-sdk` integration: `init()` waits for host injection; `listAccounts()` requests user-approved shared addresses. Supported hosts use `getBalance()` for the selected address. No signing or payment requests.
@@ -19,7 +17,12 @@ Open in Nimiq Pay: https://nimpay.app/miniapps/open/stakesafe-kappa.vercel.app
 
 ## Open inside Nimiq Pay
 
-Use the open-in-app link above, or Nimiq Pay → Mini Apps → Custom URL → `https://stakesafe-kappa.vercel.app`.
+1. Open Nimiq Pay on your phone.
+2. Go to **Mini Apps** and find the **Custom URL** field.
+3. Enter `https://stakesafe-kappa.vercel.app`.
+4. Load StakeSafe inside the app.
+
+No external app-opening link is provided. If your version does not expose Custom URL, check the current Nimiq Pay instructions or update the app.
 
 Click **Connect Nimiq Pay**, review source/privacy and mainnet confirmations, then approve account sharing in the native wallet. If several addresses are shared, choose one to monitor. The selection is not a wallet signer selection or proof of ownership. Disconnect and reconnect to request a fresh shared list.
 
@@ -31,7 +34,7 @@ A normal desktop browser does not have the Nimiq Pay provider. It can still moni
 - No transaction signing, fund custody, automatic delegation, guaranteed rewards, or safety rankings. Never transfer funds directly to a validator address.
 - Validator flags are reported as-is, not interpreted as guaranteed current performance. A historical jail marker does not prove current jail duration. Separate RPC responses are not an atomic snapshot or an independently verified consensus proof.
 - On-chain checks and directory retrieval depend on third-party availability. Host testnet is not supported in this version. Refresh after changing networks; disconnect when finished.
-- SDK behavior has been tested with controlled host responses. **Physical-device Nimiq Pay approval, WebView behavior, and external-wallet handoff still require owner testing.** Not yet claimed to be fully approved or competition-compliant.
+- SDK behavior has been tested with controlled host responses. **Physical-device Nimiq Pay approval, WebView behavior, and external-wallet handoff still require owner testing.**
 
 ## Development
 
@@ -60,17 +63,6 @@ npm run build
 The build bundles the official SDK locally with esbuild and copies an explicit allowlist of assets to `dist/`. No CDN is needed for the SDK. Vercel uses `vercel.json`. No credentials or environment variables are required by the app. Build files, test fixtures, screenshots, private documents, and repository configuration are not served.
 
 Current deployment updates are manual; automatic Git-triggered Vercel deployment is not configured.
-
-## Before competition submission
-
-Rules: https://miniappscompetition.com/rules
-Framework: https://nimiq.dev/mini-apps
-
-- Complete supported-device testing inside Nimiq Pay.
-- Confirm category eligibility, entrant details, and the one-submission-per-team rule.
-- Describe the actual foreground-monitoring scope, not background notifications.
-- Enable GitHub private vulnerability reporting and confirm a private reporting channel.
-- Make no claim of organizer approval or zero risk.
 
 ## Privacy, attribution, license
 
