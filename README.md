@@ -1,28 +1,46 @@
 # StakeSafe
 
-**Staking, in sight.** An independent, non-custodial Nimiq staking interface project.
+**Staking, in sight.** Independent read-only Nimiq Pay mini app for mainnet staking records and validator discovery.
 
-> **Pre-release prototype — not a finished competition submission.** Monitoring, alert history, balances, and notification delivery are not live. The validator directory is the only live-data feature. Public deployment is for review, not production monitoring.
+Live: https://stakesafe-kappa.vercel.app
 
-## Current features
+Open in Nimiq Pay: https://nimpay.app/miniapps/open/stakesafe-kappa.vercel.app
 
-- English interface with responsive mobile and desktop layouts.
-- Light, Dark, and System appearance with local persistence.
-- Explicit demo scenarios for normal, validator-warning, and unavailable-data conditions.
-- Read-only validator directory from the Nimiq Validators API: search, payout filter, fee sorting, source disclosure, error/retry states.
-- Fixed external staking handoff to `https://wallet.nimiq.com/staking?page=validators`.
-- No custody, transfers, transaction signing, seed phrases, analytics, or marketing trackers.
+## What works
 
-The staking link opens the official validator list. It **does not preselect a validator** or initiate staking. Users must review their choice and confirm in Nimiq Wallet. Never transfer NIM directly to a validator address.
+- Official `@nimiq/mini-app-sdk` integration: `init()` waits for host injection; `listAccounts()` requests user-approved shared addresses. Supported hosts use `getBalance()` for the selected address. No signing or payment requests.
+- Browser fallback: watch a checksum-validated public mainnet address.
+- Explicit consent before sending the selected address to `rpc.nimiqwatch.com`.
+- Real active, inactive, and retired stake, delegation, source block, and validator flags from RPC. Missing staker records are distinguished from failures. Failed checks retain labeled last-known values instead of replacing them with zero.
+- Foreground auto-refresh every 60 seconds while visible, pause/resume, manual refresh, on-screen change alerts, and up to 100 session events.
+- Mainnet-only guard: known testnet hosts are blocked; unknown/older hosts require explicit mainnet confirmation. Wallet addresses and session history are not persisted.
+- Public validator directory: search, payout filters, fee sorting, source disclosures, and a fixed official-wallet handoff. It does not preselect a validator or initiate staking.
+- English UI, Light / Dark / System themes, responsive mobile layouts.
+
+## Open inside Nimiq Pay
+
+Use the open-in-app link above, or Nimiq Pay → Mini Apps → Custom URL → `https://stakesafe-kappa.vercel.app`.
+
+Click **Connect Nimiq Pay**, review source/privacy and mainnet confirmations, then approve account sharing in the native wallet. If several addresses are shared, choose one to monitor. The selection is not a wallet signer selection or proof of ownership. Disconnect and reconnect to request a fresh shared list.
+
+A normal desktop browser does not have the Nimiq Pay provider. It can still monitor a public address, without pretending to connect a wallet. A newly accessed mini app may trigger Nimiq Pay's warning screen.
+
+## Deliberate limits
+
+- **Foreground only.** No background monitoring, email, Telegram, push notifications, server-side subscriptions, or delivery guarantees.
+- No transaction signing, fund custody, automatic delegation, guaranteed rewards, or safety rankings. Never transfer funds directly to a validator address.
+- Validator flags are reported as-is, not interpreted as guaranteed current performance. A historical jail marker does not prove current jail duration. Separate RPC responses are not an atomic snapshot or an independently verified consensus proof.
+- On-chain checks and directory retrieval depend on third-party availability. Host testnet is not supported in this version. Refresh after changing networks; disconnect when finished.
+- SDK behavior has been tested with controlled host responses. **Physical-device Nimiq Pay approval, WebView behavior, and external-wallet handoff still require owner testing.** Not yet claimed to be fully approved or competition-compliant.
 
 ## Development
 
-Requires Node.js 20+ and Python 3 for the local preview server.
+Node.js 20+ and Python 3:
 
 ```sh
 npm ci
 npm start
-# http://localhost:3000
+# Builds and serves dist on port 3000
 ```
 
 ```sh
@@ -30,41 +48,32 @@ npx playwright install --with-deps chromium
 npm test
 ```
 
-Validator tests use a local test fixture if present; otherwise they fetch the public API to create the test input. Live API unavailability may prevent that test from starting. Test snapshots are not shipped.
+Tests cover the SDK wrapper with host stubs, consent, denial, missing provider, testnet guard, real-data rendering, no-staker vs RPC errors, stale values, disconnection, directory filtering, official wallet destination, themes and mobile widths. Mock tests do not prove native-device compatibility. Directory test data is fetched from the public API if no local test fixture exists.
 
-## Production build / Vercel
+## Build and deployment
 
 ```sh
 npm ci
 npm run build
 ```
 
-Deploy `dist/` as static assets. `vercel.json` configures the build and security headers. No secrets or environment variables are required for the current app. No frame-blocking header is set, because compatibility with the Nimiq Pay host must be tested.
+The build bundles the official SDK locally with esbuild and copies an explicit allowlist of assets to `dist/`. No CDN is needed for the SDK. Vercel uses `vercel.json`. No credentials or environment variables are required by the app. Build files, test fixtures, screenshots, private documents, and repository configuration are not served.
 
-The build uses an explicit allowlist; source tests, research, screenshots, preview exports, dependency directories, and internal documents are not served. Opening `index.html` directly is not the recommended workflow. The sandboxed file viewer can block external API requests; use the live site for directory testing.
+Current deployment updates are manual; automatic Git-triggered Vercel deployment is not configured.
 
 ## Before competition submission
 
 Rules: https://miniappscompetition.com/rules
 Framework: https://nimiq.dev/mini-apps
 
-These items are **not completed**:
+- Complete supported-device testing inside Nimiq Pay.
+- Confirm category eligibility, entrant details, and the one-submission-per-team rule.
+- Describe the actual foreground-monitoring scope, not background notifications.
+- Enable GitHub private vulnerability reporting and confirm a private reporting channel.
+- Make no claim of organizer approval or zero risk.
 
-- Implement meaningful Nimiq Pay Mini App SDK integration, with consent, host-network handling, and browser fallback. An external wallet link alone must not be assumed to satisfy the integration rule.
-- Implement the promised real staking-position monitoring and clear data provenance.
-- Implement actual alert delivery, or remove unsupported product promises and adjust the scope.
-- Test end-to-end in the actual Nimiq Pay WebView and official wallet, on supported devices.
-- Configure a public repository, operator contact, and private vulnerability reporting.
-- Confirm entrant eligibility, category, one-submission-per-team rule, submission information, and current deadlines with the organizer.
+## Privacy, attribution, license
 
-No claim of organizer approval or complete rule compliance is made.
+Read [privacy.html](privacy.html), [SECURITY.md](SECURITY.md), [ATTRIBUTIONS.md](ATTRIBUTIONS.md), and [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt).
 
-## Identity and disclosures
-
-Editable vector assets: `logo-light.svg`, `logo-dark.svg`, `logo-symbol.svg`.
-
-Read [ATTRIBUTIONS.md](ATTRIBUTIONS.md), [SECURITY.md](SECURITY.md), and the in-app [privacy and limitations](privacy.html). Independent project; not endorsed by Nimiq. Directory entries and scores are not safety guarantees or investment advice. A successful fetch does not establish that upstream data is current.
-
-## License
-
-Project code: MIT; see [LICENSE](LICENSE). Third-party names and metadata are not relicensed by this project's license.
+Project code is MIT. Third-party names and metadata are not relicensed by the project license. StakeSafe is not an official Nimiq service and is not endorsed by any validator.

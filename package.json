@@ -1,15 +1,19 @@
 {
   "name": "stakesafe",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
-    "start": "python3 -m http.server 3000 --bind 0.0.0.0",
-    "test": "node test/ui.mjs && node test/validators.mjs",
+    "start": "npm run build && python3 -m http.server 3000 --bind 0.0.0.0 --directory dist",
+    "test": "npm run build && node test/live.mjs && node test/validators.mjs",
     "build": "node scripts/build.mjs"
   },
   "devDependencies": {
-    "@playwright/test": "1.64.1"
+    "@playwright/test": "1.64.1",
+    "esbuild": "^0.28.2"
   },
   "license": "MIT",
-  "description": "Independent Nimiq staking monitoring prototype and read-only validator directory"
+  "description": "Read-only Nimiq Pay staking monitor and public validator directory",
+  "dependencies": {
+    "@nimiq/mini-app-sdk": "^0.2.4"
+  }
 }

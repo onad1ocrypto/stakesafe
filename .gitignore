@@ -10,3 +10,7 @@ test/validators-source.json
 StakeSafe-preview.html
 logo-concept.png
 .DS_Store
+
+live.bundle.js
+live.bundle.js.LEGAL.txt
+test/*-live.json

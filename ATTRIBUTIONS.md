@@ -8,3 +8,7 @@
 - Development tests: Playwright, https://github.com/microsoft/playwright (Apache-2.0); installed as a development dependency, not included in the static app bundle.
 
 No affiliation or endorsement by Nimiq or any validator is implied.
+
+- Runtime: @nimiq/mini-app-sdk 0.2.4, The Nimiq Development Team (MIT), https://github.com/nimiq/trust-web3-provider . Bundled locally; see THIRD_PARTY_NOTICES.txt.
+- Mainnet records: https://rpc.nimiqwatch.com (third-party public RPC), used only after source disclosure and explicit consent.
+- Development bundler: esbuild (MIT), not a runtime service.
