@@ -28,7 +28,7 @@ Live mainnet browser captures. Account addresses are redacted for privacy; balan
 
 1. Open **Nimiq Pay → Mini Apps → Custom URL** and enter `https://stakesafe-kappa.vercel.app`.
 2. Connect to monitor an address, or open **Profile → Use my Pay staking account**. Review the data-source consent and any native account-check message. An account-check signature is not a transaction.
-3. Review your profile and validator. Choose an action, check its amount and details, then approve or cancel in Pay.
+3. Use **Profile → Add stake** for the same validator, or **Profile → Change validator** to choose another validator from the directory. Pay’s initial account-check signature moves no funds. Review the existing stake, current → new validator, additional funds and fee before separately approving or canceling the actual transaction in Pay.
 
 If Custom URL is unavailable, update Pay or consult its current instructions. A regular browser can monitor a public address but cannot provide native Pay signing.
 

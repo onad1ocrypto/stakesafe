@@ -298,7 +298,20 @@ const calls = (p) => p.evaluate(() => window.__calls);
 for (const kind of ["add", "switch"]) {
   const { context, p } = await setup({ kind });
   await identify(p);
+  if (kind === "switch") {
+    await p.waitForSelector("#native-switch-summary");
+    assert.equal(await p.locator("#native-switch-total").textContent(), "300 NIM");
+    const summary = await p.locator("#native-switch-summary").textContent();
+    assert.ok(summary.includes(other.address) && summary.includes(v.address));
+    assert.match(summary, /Active: 200 NIM.*Inactive: 100 NIM.*Retired: 0 NIM/);
+    assert.match(summary, /Additional stake: 0 NIM/);
+    assert.equal((await calls(p)).filter(c => c.name !== "sign").length, 0);
+  }
   await review(p, kind === "add" ? "0.00001" : "100");
+  if (kind === "switch") {
+    assert.equal(await p.locator("#native-switch-total").textContent(), "300 NIM");
+    assert.match(await p.locator("#native-switch-summary").textContent(), /From validator.*To validator/);
+  }
   await p.click("#native-send");
   await p.waitForSelector("#native-check");
   const c = (await calls(p)).find((x) => x.name === kind);
@@ -410,6 +423,12 @@ for (const kind of ["deactivate", "retire", "withdraw"]) {
     v.name,
   );
   assert.equal(await p.locator("#delegated-validator").textContent(), v.name);
+  assert.equal(await p.locator("#profile-change").textContent(), "Change validator");
+  const beforeBrowse = (await calls(p)).length;
+  await p.click("#profile-change");
+  assert.equal(await p.locator("#page-validators").isVisible(), true);
+  assert.equal((await calls(p)).length, beforeBrowse); // Browse only: no signature/send.
+  await p.evaluate(() => navigate("profile"));
   assert.equal((await calls(p)).filter((c) => c.name !== "sign").length, 0);
   await p.reload();
   await p.waitForFunction(
