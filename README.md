@@ -13,7 +13,7 @@ Live: https://stakesafe-kappa.vercel.app
 - Foreground auto-refresh every 60 seconds while visible, pause/resume, manual refresh, on-screen change alerts, and up to 100 session events.
 - Mainnet-only guard: known testnet hosts are blocked; unknown/older hosts require explicit mainnet confirmation. The optional Remember this address setting persists only the selected public address and RPC/mainnet consent on this device. Shared account lists, balances, and history are not persisted.
 - Public validator directory: search, payout filters, fee sorting, source disclosures, and a fixed official-wallet handoff. It does not preselect a validator or initiate staking.
-- English UI, Light / Dark / System themes, responsive mobile layouts.
+- English UI, Light / Dark / System themes, responsive mobile layouts with a top hamburger menu (no bottom navigation bar).
 
 ## Open inside Nimiq Pay
 
