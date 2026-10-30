@@ -12,3 +12,7 @@ StakeSafe is a read-only mainnet staking mini app with foreground monitoring and
 ## Reporting
 
 A private reporting channel is not configured yet. The repository owner must enable GitHub private vulnerability reporting before public release. Do not publish exploitable security details, keys, or user information in issues.
+
+## Read-only gateway
+
+`api/rpc.js` accepts only getBlockNumber, getStakerByAddress, getValidatorByAddress, and getAccountByAddress. Upstream is fixed, parameters and body size are checked, responses are not cached, and the handler adds no request-body logs or database writes. Transaction methods and arbitrary upstream URLs are never forwarded. The gateway remains a public service and should be monitored for abuse; no zero-risk or availability guarantee is made.

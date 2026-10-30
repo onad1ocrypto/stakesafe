@@ -8,7 +8,7 @@ Live: https://stakesafe-kappa.vercel.app
 
 - Official `@nimiq/mini-app-sdk` integration: `init()` waits for host injection; `listAccounts()` requests user-approved shared addresses. Supported hosts use `getBalance()` for the selected address. No signing or payment requests.
 - Browser fallback: watch a checksum-validated public mainnet address.
-- Explicit consent before sending the selected address to `rpc.nimiqwatch.com`.
+- Explicit consent before mainnet reads. The browser uses the same-origin `/api/rpc` gateway, which forwards allowlisted read-only requests to `rpc.nimiqwatch.com`.
 - Real active, inactive, and retired stake, delegation, source block, and validator flags from RPC. Missing staker records are distinguished from failures. Failed checks retain labeled last-known values instead of replacing them with zero.
 - Foreground auto-refresh every 60 seconds while visible, pause/resume, manual refresh, on-screen change alerts, and up to 100 session events.
 - Mainnet-only guard: known testnet hosts are blocked; unknown/older hosts require explicit mainnet confirmation. The optional Remember this address setting persists only the selected public address and RPC/mainnet consent on this device. Shared account lists, balances, and history are not persisted.
@@ -26,7 +26,7 @@ No external app-opening link is provided. If your version does not expose Custom
 
 Click **Connect Nimiq Pay**, review source/privacy and mainnet confirmations, then approve account sharing in the native wallet. If several addresses are shared, choose one to monitor. The selection is not a wallet signer selection or proof of ownership. Use Change address to request a fresh shared list. Disconnect & forget removes the remembered address.
 
-**No repeated connection for read-only monitoring:** keep Remember this address enabled at first connection. On return, the saved mainnet address is queried directly through the public RPC; wallet account permissions are not requested again. This is a remembered watch address, not a wallet login or proof of ownership. If you switch Nimiq Pay wallets, use Change address; the app will not silently assume the remembered address belongs to the current wallet. Storage must remain available on the same site and device.
+**No repeated connection for read-only monitoring:** keep Remember this address enabled at first connection. On return, the saved mainnet address is queried through the read-only gateway; wallet account permissions are not requested again. This is a remembered watch address, not a wallet login or proof of ownership. If you switch Nimiq Pay wallets, use Change address; the app will not silently assume the remembered address belongs to the current wallet. Storage must remain available on the same site and device.
 
 A normal desktop browser does not have the Nimiq Pay provider. It can still monitor a public address, without pretending to connect a wallet. A newly accessed mini app may trigger Nimiq Pay's warning screen.
 
@@ -40,7 +40,7 @@ A normal desktop browser does not have the Nimiq Pay provider. It can still moni
 
 ## Development
 
-Node.js 20+ and Python 3:
+Node.js 20+:
 
 ```sh
 npm ci
@@ -62,7 +62,7 @@ npm ci
 npm run build
 ```
 
-The build bundles the official SDK locally with esbuild and copies an explicit allowlist of assets to `dist/`. No CDN is needed for the SDK. Vercel uses `vercel.json`. No credentials or environment variables are required by the app. Build files, test fixtures, screenshots, private documents, and repository configuration are not served.
+The build bundles the official SDK locally with esbuild and copies an explicit allowlist of browser assets to `dist/`. `api/rpc.js` is a separate Vercel Node.js function, not a static file. `npm start` runs the same gateway locally. Static-only hosting without the API function is not supported. No CDN is needed for the SDK. Vercel uses `vercel.json`; deploy the API function alongside the assets. The upstream has a seven-second deadline per attempt and one retry for transient failures. Browser requests have a separate timeout; repeated identical failure toasts are throttled for five minutes while errors remain visible in the status/history. No credentials or environment variables are required by the app. Build files, test fixtures, screenshots, private documents, and repository configuration are not served.
 
 Current deployment updates are manual; automatic Git-triggered Vercel deployment is not configured.
 
