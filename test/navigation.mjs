@@ -12,4 +12,10 @@ for(const theme of ['light','dark']){
  }
 }
 await p.setViewportSize({width:390,height:844});await p.click('#mobile-menu-toggle');await p.screenshot({path:'test/mobile-menu.png',fullPage:false});
-await p.setViewportSize({width:1440,height:1000});assert.equal(await p.locator('#mobile-menu-toggle').isVisible(),false);assert.equal(await p.locator('#primary-navigation').isVisible(),true);assert.equal(await p.locator('body').evaluate(el=>el.classList.contains('mobile-menu-open')),false);await p.click('[data-page=overview]');assert.equal(await p.locator('#page-overview').isVisible(),true);assert.deepEqual(errors,[]);await b.close();console.log('PASS: hamburger replaces bottom nav at 320/390/640px in both themes; page selection, outside click, Escape/focus, responsive resize and desktop sidebar.');
+await p.setViewportSize({width:1440,height:1000});assert.equal(await p.locator('#mobile-menu-toggle').isVisible(),false);assert.equal(await p.locator('#primary-navigation').isVisible(),true);assert.equal(await p.locator('body').evaluate(el=>el.classList.contains('mobile-menu-open')),false);await p.click('[data-page=overview]');assert.equal(await p.locator('#page-overview').isVisible(),true);assert.deepEqual(errors,[]);await p.evaluate(() => navigate('overview'));
+// Public instructions must advertise the current canonical domain on either alias.
+await p.click('#open-in-nimiq');
+assert.match(await p.locator('#modal-body').textContent(), /https:\/\/stakesafe\.web\.id/);
+assert.doesNotMatch(await p.locator('#modal-body').textContent(), /stakesafe-kappa\.vercel\.app/);
+await p.click('#close-modal');
+await b.close();console.log('PASS: hamburger replaces bottom nav at 320/390/640px in both themes; page selection, outside click, Escape/focus, responsive resize, desktop sidebar and canonical-domain instructions.');

@@ -4,7 +4,7 @@
 
 **Staking, in sight.** A Nimiq Pay mini app for checking your mainnet staking position, finding validators, and reviewing native staking actions in one place.
 
-**[Open StakeSafe](https://stakesafe-kappa.vercel.app)** · [Privacy](https://stakesafe-kappa.vercel.app/privacy.html) · [Security](SECURITY.md)
+**[Open StakeSafe](https://stakesafe.web.id)** · [Privacy](https://stakesafe.web.id/privacy.html) · [Security](SECURITY.md)
 
 ## What you can do
 
@@ -26,7 +26,7 @@ Live mainnet browser captures. Account addresses are redacted for privacy; balan
 
 ## Use inside Nimiq Pay
 
-1. Open **Nimiq Pay → Mini Apps → Custom URL** and enter `https://stakesafe-kappa.vercel.app`.
+1. Open **Nimiq Pay → Mini Apps → Custom URL** and enter `https://stakesafe.web.id`.
 2. Connect to monitor an address, or open **Profile → Use my Pay staking account**. Review the data-source consent and any native account-check message. An account-check signature is not a transaction.
 3. Use **Profile → Add stake** for the same validator, or **Profile → Change validator** to choose another validator from the directory. Pay’s initial account-check signature moves no funds. Review the existing stake, current → new validator, additional funds and fee before separately approving or canceling the actual transaction in Pay.
 
