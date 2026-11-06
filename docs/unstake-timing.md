@@ -30,7 +30,7 @@ References reviewed:
 
 Time remaining is estimated from the last observed head and the network's target block interval (`blockSeparationTime`, milliseconds). The local countdown ticks once per second without sending extra RPC requests. Existing foreground checks normally run once per minute.
 
-Reaching zero on the device clock **cannot** mark funds eligible. The latest successfully read head must reach the release height. Reads older than 90 seconds, failures and clock rollback produce a not-verified status, not a fresh ready state. Policy/validator failures produce an unavailable estimate. Browser local time is used for the displayed estimated date.
+Reaching zero on the device clock **cannot** mark funds eligible. The latest successfully read head must reach the release height. Reads older than 90 seconds, failures and clock rollback produce a not-verified status, not a fresh ready state. Policy/validator failures produce an unavailable estimate. All estimated dates are explicitly displayed in UTC (YYYY-MM-DD HH:mm UTC), independent of the device timezone. The remaining-duration countdown is timezone-independent.
 
 Readiness is an RPC observation, not an independently verified consensus proof or authorization guarantee. Separate account, validator and head calls are not an atomic snapshot. Pay/network enforce actual rules at execution; a new deactivation or jail can change timing.
 

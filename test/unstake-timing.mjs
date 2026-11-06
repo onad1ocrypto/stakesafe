@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {unstakeTiming as timing,formatRemaining,timingHtml} from '../src/unstake-timing.mjs';
+import {unstakeTiming as timing,formatRemaining,timingHtml,formatEstimatedUTC} from '../src/unstake-timing.mjs';
 const now=1800000000000,A='NQ07 0000 0000 0000 0000 0000 0000 0000 0000';
 const policy={blocksPerEpoch:43200,jailEpochs:8,blockSeparationTime:1000,genesisBlockNumber:3456000};
 const inactiveFrom=66225600,target=66268801;
@@ -29,4 +29,7 @@ m=copy();m.snapshot.staker.delegation=null;m.snapshot.policy=null;assert.equal(t
 assert.equal(formatRemaining(86401000),'1d 00:00:01');assert.equal(formatRemaining(0),'00:00:00');
 assert.ok(!timingHtml({state:'unknown',title:'<script>',detail:'<img>'}).includes('<script>'));
 assert.match(timingHtml(timing(base,now)),/66,268,801/);assert.match(timingHtml(timing(base,now)),/Estimated/);
-console.log('PASS: 36 deterministic countdown/boundary/jail/stale/failure/retired/escaping assertions. No chain writes.');
+assert.equal(formatEstimatedUTC(Date.parse('2026-11-07T12:50:00Z')),'2026-11-07 12:50 UTC');
+const tz=process.env.TZ;process.env.TZ='Asia/Jakarta';assert.equal(formatEstimatedUTC(Date.parse('2026-11-07T12:50:00Z')),'2026-11-07 12:50 UTC');if(tz===undefined)delete process.env.TZ;else process.env.TZ=tz;
+assert.ok(!timingHtml(timing(base,now)).includes('your local time'));
+console.log('PASS: deterministic UTC/countdown countdown/boundary/jail/stale/failure/retired/escaping assertions. No chain writes.');
