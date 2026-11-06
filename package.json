@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "start": "npm run build && node scripts/serve.cjs",
-    "test": "npm run build && node test/gateway.cjs && node test/live.mjs && node test/reliability.mjs && node test/validators.mjs && node test/navigation.mjs && node test/native-staking.mjs && node test/visual-theme.mjs",
+    "test": "npm run build && node test/gateway.cjs && node test/unstake-timing.mjs && node test/unstake-countdown.mjs && node test/live.mjs && node test/reliability.mjs && node test/validators.mjs && node test/navigation.mjs && node test/native-staking.mjs && node test/visual-theme.mjs",
     "build": "node scripts/build.mjs"
   },
   "devDependencies": {

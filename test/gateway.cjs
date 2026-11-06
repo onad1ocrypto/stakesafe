@@ -8,4 +8,9 @@ calls=0;global.fetch=async(url,opts)=>{calls++;assert.equal(url,'https://rpc.nim
 global.fetch=async()=>({ok:true,json:async()=>({error:{code:-32603,data:'No staker with address: '+A}})});response=await run({method:'getStakerByAddress',params:[A]});assert.equal(response.statusCode,200);assert.match(response.body.error.data,/No staker/);
 calls=0;global.fetch=async()=>{calls++;throw new Error('Unavailable')};response=await run({method:'getBlockNumber',params:[]});assert.equal(response.statusCode,502);assert.equal(calls,2);
 calls=0;global.fetch=async()=>{calls++;let e=new Error('timeout');e.name='AbortError';throw e};assert.equal((await run({method:'getBlockNumber',params:[]})).statusCode,504);assert.equal(calls,2);
+assert.equal((await run({method:'getPolicyConstants',params:[1]})).statusCode,400);
+calls=0;global.fetch=async()=>{calls++;return calls===1?{ok:false,status:503}:{ok:true,json:async()=>({result:{data:{blocksPerEpoch:43200}},id:1})}};
+assert.equal((await run({method:'getPolicyConstants',params:[]})).statusCode,200);assert.equal(calls,2);
+calls=0;global.fetch=async()=>{calls++;return {ok:false,status:503}};assert.equal((await run({method:'getPolicyConstants',params:[]})).statusCode,502);assert.equal(calls,2);
+console.log('PASS: policy zero-parameter validation and bounded 503 recovery/failure.');
 console.log('PASS: gateway whitelist, parameter validation, fixed upstream, no-store, one bounded retry, no-staker passthrough, network error and timeout status.');})().catch(e=>{console.error(e);process.exit(1)});

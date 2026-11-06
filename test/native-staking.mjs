@@ -102,6 +102,7 @@ async function setup(options = {}) {
       return r.fulfill({ status: 504, json: { error: "timeout" } });
     let x;
     if (method === "getBlockNumber") x = 65590000;
+    else if (method === "getPolicyConstants") x = { blocksPerEpoch:43200, jailEpochs:8, blockSeparationTime:1000, genesisBlockNumber:3456000 };
     else if (method === "getAccountByAddress")
       x = { address: params[0], balance: config.balance, type: "basic" };
     else if (method === "getValidatorByAddress")

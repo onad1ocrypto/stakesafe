@@ -155,3 +155,7 @@
  [data-theme=light] .position-metrics{padding:17px 12px}
 }
 [data-theme=light] .settings-intro,[data-theme=light] .page-heading p,[data-theme=light] .connect-note,[data-theme=light] .directory-address,[data-theme=light] .directory-meta{color:#566f88}
+
+/* Read-only unstaking countdown, shared by overview/profile/native review. */
+.unstake-timing{margin:18px 0;padding:18px;border:1px solid var(--border,#334b68);border-left:3px solid #3188cb;border-radius:14px;background:rgba(52,137,196,.07);overflow-wrap:anywhere;min-width:0}
+.timing-title{font-weight:700;font-size:15px;line-height:1.5}.timing-countdown{display:block;margin:10px 0;font-size:clamp(25px,6vw,34px);font-variant-numeric:tabular-nums;letter-spacing:.02em}.timing-date{font-size:12px;line-height:1.6;opacity:.8}.timing-blocks{display:flex;gap:12px;flex-wrap:wrap;margin:14px 0}.timing-blocks>div{flex:1 1 110px}.timing-blocks dt{font-size:11px;opacity:.75}.timing-blocks dd{margin:4px 0 0;font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}.unstake-timing p{font-size:13px;line-height:1.6;margin:10px 0}.unstake-timing small{display:block;font-size:11px;line-height:1.6;opacity:.75}.timing-ready{border-left-color:#1eaa95}

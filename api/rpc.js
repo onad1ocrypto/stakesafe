@@ -1,7 +1,7 @@
 // Read-only RPC gateway. The upstream URL and method list are fixed.
 // No credentials, database, transaction submission, or request-body logging.
 const UPSTREAM = 'https://rpc.nimiqwatch.com';
-const ALLOWED = new Set(['getBlockNumber', 'getStakerByAddress', 'getValidatorByAddress', 'getAccountByAddress', 'getTransactionByHash']);
+const ALLOWED = new Set(['getBlockNumber', 'getPolicyConstants', 'getStakerByAddress', 'getValidatorByAddress', 'getAccountByAddress', 'getTransactionByHash']);
 function reply(res,status,body){res.setHeader('Cache-Control','no-store');res.setHeader('Content-Type','application/json');res.setHeader('X-Content-Type-Options','nosniff');res.statusCode=status;res.end(JSON.stringify(body));}
 module.exports = async function handler(req,res){
  if(req.method!=='POST'){res.setHeader('Allow','POST');return reply(res,405,{error:'Read-only POST endpoint.'});}
@@ -10,7 +10,7 @@ module.exports = async function handler(req,res){
  if(!input||Array.isArray(input)||!ALLOWED.has(input.method))return reply(res,400,{error:'Only supported read-only methods are allowed.'});
  const {method,params,id}=input;
  const paramPattern=method==='getTransactionByHash'?/^[a-f0-9]{64}$/i:/^NQ\d{2}(?:\s?[0-9A-HJ-NP-VXY]){32}$/;
- if(!Array.isArray(params)||(method==='getBlockNumber'?params.length!==0:params.length!==1||typeof params[0]!=='string'||!paramPattern.test(params[0])))return reply(res,400,{error:'Invalid read-only request parameters.'});
+ if(!Array.isArray(params)||((method==='getBlockNumber'||method==='getPolicyConstants')?params.length!==0:params.length!==1||typeof params[0]!=='string'||!paramPattern.test(params[0])))return reply(res,400,{error:'Invalid read-only request parameters.'});
  const body=JSON.stringify({jsonrpc:'2.0',id:typeof id==='number'&&Number.isSafeInteger(id)?id:1,method,params});
  for(let attempt=0;attempt<2;attempt++){
   const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),7000);

@@ -661,7 +661,7 @@ function showExitForm(f) {
   const b = f.state.staker;
   openModal(
     title(f.kind),
-    `<div class="notice-box">Mainnet · Staking owner<br><strong class="full-validator-address">${esc(f.sender)}</strong></div><p>Validator: ${esc(f.v.name)}</p><p>Active: ${fmt(b.balance)} NIM · Inactive: ${fmt(b.inactiveBalance)} NIM · Retired: ${fmt(b.retiredBalance)} NIM</p><label for="native-stage">Unstaking step</label><select id="native-stage">${[
+    `<div class="notice-box">Mainnet · Staking owner<br><strong class="full-validator-address">${esc(f.sender)}</strong></div><p>Validator: ${esc(f.v.name)}</p><p>Active: ${fmt(b.balance)} NIM · Inactive: ${fmt(b.inactiveBalance)} NIM · Retired: ${fmt(b.retiredBalance)} NIM</p><div id="native-unstake-timer" aria-live="off" data-unstake-timer data-owner="${esc(f.sender)}" data-position="${esc(positionKey(b))}"></div><label for="native-stage">Unstaking step</label><select id="native-stage">${[
       ["deactivate", "1. Deactivate active stake", b.balance],
       ["retire", "2. Retire inactive stake", b.inactiveBalance],
       ["withdraw", "3. Withdraw retired stake", b.retiredBalance],
@@ -674,6 +674,7 @@ function showExitForm(f) {
         "",
       )}</select><div class="notice-box">${exitExplanation(f.kind)}</div><p>Inactive-from block: ${esc(b.inactiveFrom ?? "Not reported")}. This is a recorded block, not a guarantee that retirement or withdrawal is currently allowed. Check Pay’s final confirmation. A waiting period or validator restrictions can cause rejection.</p><label for="native-amount">Amount for this step (NIM)</label><input class="native-amount" id="native-amount" type="text" inputmode="decimal" autocomplete="off" placeholder="Amount in NIM"><p>For partial retirement/withdrawal, the protocol requires applicable remaining stake to be 0 or at least 100 NIM. Review the network fee in Pay. No StakeSafe service fee.</p><label class="consent-row"><input id="native-review-consent" type="checkbox"><span>I understand this is only the selected step. It will not automatically retire or withdraw funds later. I will verify the selected Pay wallet, staking account, action, amount, destination, fee and mainnet before approving; I will cancel if anything is wrong or unclear.</span></label><p id="native-error" role="alert"></p><button class="button primary" id="native-review">Review action</button><button class="button white" data-native-close>Cancel</button>`,
   );
+  window.renderStakeSafeUnstakeTimers?.();
 }
 document.addEventListener("change", (e) => {
   if (e.target.id === "native-stage" && flow && !sending && !lockBusy) {
