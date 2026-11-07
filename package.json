@@ -15,6 +15,7 @@
   "description": "Nimiq Pay staking monitor, validator directory and opt-in native staking",
   "dependencies": {
     "@nimiq/mini-app-sdk": "^0.2.4",
-    "@noble/hashes": "^1.8.0"
+    "@noble/hashes": "^1.8.0",
+    "@vercel/analytics": "^2.0.1"
   }
 }
